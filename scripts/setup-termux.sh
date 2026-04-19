@@ -1,12 +1,10 @@
 #!/bin/bash
 # ============================================================
-# ZeroClaw SWAL Node - Termux Setup v3.7
+# ZeroClaw SWAL Node - Termux Setup v3.8
 # Interactive installer con diagnostico y reparacion de config
-# Admin privileges para instalacion completa de paquetes
-# Incluye logo SWAL con oh-my-logo (colores OrionHealth)
 # Autonomy level: full (actua autonomously, no pide aprobacion)
 # Security policy: comandos permitidos (pkg, git, npm, python, etc)
-# Skills: globales + por proyecto (sales, manteniapp, worldexams, orionhealth)
+# Skills: globales + por proyecto
 # ============================================================
 set -euo pipefail
 
@@ -39,8 +37,7 @@ fix_broken_config() {
     
     if [[ -f "$BASHRC" ]]; then
         if grep -q "zeroclaw start" "$BASHRC" 2>/dev/null; then
-            warn "Encontrado 'zeroclaw start' en $BASHRC - esto rompe Termux!"
-            info "Removiendo linea rota..."
+            warn "Encontrado 'zeroclaw start' en $BASHRC!"
             sed -i '/zeroclaw start/d' "$BASHRC"
             ((fixed++))
             success "Reparado: 'zeroclaw start' removido de .bashrc"
@@ -172,7 +169,7 @@ diagnose() {
         echo -e "${GREEN}OK$(node --version)${NC}"
         ((passed++))
     else
-        echo -e "  Node.js: ${RED}FAIL no instalado${NC}"
+        echo -e "  Node.js: ${YELLOW}WARN no instalado${NC}"
     fi
 
     ((checks++))
@@ -181,7 +178,7 @@ diagnose() {
         echo -e "${GREEN}OK$(npm --version)${NC}"
         ((passed++))
     else
-        echo -e "  npm: ${RED}FAIL no instalado${NC}"
+        echo -e "  npm: ${YELLOW}WARN no instalado${NC}"
     fi
 
     ((checks++))
@@ -190,7 +187,7 @@ diagnose() {
         echo -e "${GREEN}OK$(python3 --version 2>&1)${NC}"
         ((passed++))
     else
-        echo -e "  Python: ${RED}FAIL no instalado${NC}"
+        echo -e "  Python: ${YELLOW}WARN no instalado${NC}"
     fi
 
     ((checks++))
@@ -199,7 +196,7 @@ diagnose() {
         echo -e "${GREEN}OK$(git --version 2>&1)${NC}"
         ((passed++))
     else
-        echo -e "  Git: ${RED}FAIL no instalado${NC}"
+        echo -e "  Git: ${YELLOW}WARN no instalado${NC}"
     fi
 
     ((checks++))
@@ -278,7 +275,7 @@ configure_api_keys() {
 }
 
 # ============================================================
-# INSTALAR SKILLS (globales y por proyecto)
+# INSTALAR SKILLS
 # ============================================================
 install_skills() {
     info "Instalando SWAL Skills..."
@@ -305,35 +302,12 @@ type: global
 
 # $skill
 
-Skill global instalado por setup-termux.sh v3.7
+Skill global instalado por setup-termux.sh v3.8
 EOF
         echo -e "${GREEN}OK${NC}"
     done
     
-    # Skills por proyecto
-    local projects=(
-        "sales:sales-agent,cortex-memory"
-        "manteniapp:sales-agent,minimax-tools,cortex-memory"
-        "worldexams:cortex-memory,minimax-tools"
-        "orionhealth:cortex-memory,minimax-tools"
-    )
-    
-    for project_info in "${projects[@]}"; do
-        local project_name="${project_info%%:*}"
-        local project_skills="${project_info#*:}"
-        local project_dir="$HOME/.zeroclaw/workspace/projects/$project_name/skills"
-        
-        mkdir -p "$project_dir"
-        
-        echo -n "  [$project_name] "
-        for skill in $(echo "$project_skills" | tr ',' ' '); do
-            mkdir -p "$project_dir/$skill"
-            echo -n "$skill "
-        done
-        echo -e "${GREEN}OK${NC}"
-    done
-    
-    success "Skills instalados"
+    success "Skills instalados en $global_skills_dir"
 }
 
 # ============================================================
@@ -360,19 +334,17 @@ EOF
 }
 
 # ============================================================
-# CONFIGURAR ZEROCLAW AUTONOMY LEVEL (FULL - no pide aprobacion)
+# CONFIGURAR ZEROCLAW AUTONOMY LEVEL (FULL)
 # ============================================================
 configure_zeroclaw_autonomy() {
-    info "Configurando ZeroClaw autonomy level..."
+    info "Configurando ZeroClaw autonomy level a FULL..."
     
     local config_file="$HOME/.zeroclaw/config.toml"
     
     mkdir -p "$HOME/.zeroclaw"
     
-    # Verificar si ya existe autonomy_level y cambiar a full
     if grep -q 'autonomy_level' "$config_file" 2>/dev/null; then
         sed -i 's/autonomy_level = ".*"/autonomy_level = "full"/' "$config_file"
-        success "autonomy_level actualizado a full"
     else
         if grep -q '^\[agent\]' "$config_file" 2>/dev/null; then
             sed -i '/^\[agent\]/a autonomy_level = "full"' "$config_file"
@@ -380,32 +352,31 @@ configure_zeroclaw_autonomy() {
             echo -e "\n[agent]" >> "$config_file"
             echo 'autonomy_level = "full"' >> "$config_file"
         fi
-        success "autonomy_level configurado a full"
     fi
     
-    grep 'autonomy_level' "$config_file" 2>/dev/null || true
+    success "autonomy_level = full"
 }
 
 # ============================================================
 # CONFIGURAR SECURITY POLICY (comandos permitidos)
 # ============================================================
 configure_security_policy() {
-    info "Configurando security policy (comandos permitidos)..."
+    info "Configurando security policy..."
     
     local config_file="$HOME/.zeroclaw/config.toml"
     
+    local allowed_cmds='allowed_commands = ["pkg", "pkg_install", "pkg_update", "pkg_upgrade", "termux-setup-storage", "git", "curl", "wget", "openssl", "sshd", "ssh-keygen", "node", "npm", "python", "python3", "pip", "pip3", "bash", "sh", "echo", "pwd", "ls", "cd", "mkdir", "rm", "cp", "mv", "cat", "grep", "sed", "awk", "find", "chmod", "chown", "tar", "unzip", "zip"]'
+    
     if grep -q '^\[security\]' "$config_file" 2>/dev/null; then
         if ! grep -q 'allowed_commands' "$config_file"; then
-            sed -i '/^\[security\]/a allowed_commands = ["pkg", "pkg_install", "pkg_update", "pkg_upgrade", "termux-setup-storage", "git", "curl", "wget", "openssl", "sshd", "ssh-keygen", "node", "npm", "python", "python3", "pip", "pip3", "bash", "sh", "echo", "pwd", "ls", "cd", "mkdir", "rm", "cp", "mv", "cat", "grep", "sed", "awk", "find"]' "$config_file"
+            sed -i "/^\[security\]/a $allowed_cmds" "$config_file"
         fi
-        success "security policy actualizada"
     else
         echo -e "\n[security]" >> "$config_file"
-        echo 'allowed_commands = ["pkg", "pkg_install", "pkg_update", "pkg_upgrade", "termux-setup-storage", "git", "curl", "wget", "openssl", "sshd", "ssh-keygen", "node", "npm", "python", "python3", "pip", "pip3", "bash", "sh", "echo", "pwd", "ls", "cd", "mkdir", "rm", "cp", "mv", "cat", "grep", "sed", "awk", "find"]' >> "$config_file"
-        success "security policy creada"
+        echo "$allowed_cmds" >> "$config_file"
     fi
     
-    grep 'allowed_commands' "$config_file" 2>/dev/null || true
+    success "Comandos permitidos configurados"
 }
 
 # ============================================================
@@ -413,32 +384,17 @@ configure_security_policy() {
 # ============================================================
 show_swal_logo() {
     echo ""
-    echo "============================================================"
-    echo "  LOGO SWAL - Colores OrionHealth"
-    echo "============================================================"
-    echo ""
+    info "Generando logo SWAL..."
     
-    if ! command -v node &>/dev/null || ! command -v npx &>/dev/null; then
-        warn "Node.js no instalado. Saltando logo..."
-        return
-    fi
-    
-    info "Generando logo SWAL con oh-my-logo..."
-    echo ""
-    
-    if npx --yes oh-my-logo "SWAL" --palette-colors "$ORION_COLORS" --filled --letter-spacing 2 2>/dev/null; then
-        success "Logo SWAL mostrado!"
+    if command -v node &>/dev/null && command -v npx &>/dev/null; then
+        npx --yes oh-my-logo "SWAL" --palette-colors "$ORION_COLORS" --filled --letter-spacing 2 2>/dev/null || echo -e "\n\033[1;32m=== S W A L ===\033[0m"
     else
-        echo -e "\033[1;36m============================================================\033[0m"
-        echo -e "\033[1;32m  S  W  A  L\033[0m"
-        echo -e "\033[1;36m============================================================\033[0m"
+        echo -e "\n\033[1;32m=== S W A L ===\033[0m"
     fi
-    
-    echo ""
 }
 
 # ============================================================
-# MOSTRAR CONFIGURACION COMPLETA (para copiar manualmente)
+# MOSTRAR CONFIGURACION COMPLETA
 # ============================================================
 show_config() {
     echo ""
@@ -452,29 +408,22 @@ show_config() {
     if [[ -f "$config_file" ]]; then
         info "Archivo: $config_file"
         echo ""
-        echo "--- Contenido actual ---"
-        echo ""
+        echo "--- Contenido ---"
         cat "$config_file"
         echo ""
         
-        echo "--- Politicas restrictivas ---"
-        echo ""
-        
-        local autonomy=$(grep -i "autonomy_level" "$config_file" 2>/dev/null || echo "autonomy_level: NO CONFIGURADO")
-        echo "  * $autonomy"
-        
-        if grep -q "allowed_commands" "$config_file" 2>/dev/null; then
-            local allowed=$(grep "allowed_commands" "$config_file" 2>/dev/null)
-            echo "  * $allowed"
-        else
-            echo "  * allowed_commands: NO CONFIGURADO"
-        fi
-        
-        echo ""
-        info "Si el bot sigue bloqueado, copia el config arriba y revisalo"
+        echo "--- Resumen ---"
+        grep -i "autonomy_level" "$config_file" 2>/dev/null && echo "" || echo "  autonomy_level: NO CONFIGURADO"
+        grep "allowed_commands" "$config_file" 2>/dev/null && echo "" || echo "  allowed_commands: NO CONFIGURADO"
         
     else
-        warn "Archivo de configuracion no encontrado"
+        warn "Archivo de configuracion no encontrado: $config_file"
+        echo ""
+        echo "--- Creando config por defecto ---"
+        configure_zeroclaw_autonomy
+        configure_security_policy
+        echo ""
+        cat "$config_file"
     fi
     
     echo ""
@@ -490,65 +439,12 @@ show_config() {
 }
 
 # ============================================================
-# MENU DE PAQUETES
-# ============================================================
-show_menu() {
-    echo ""
-    echo "============================================================"
-    echo "  INSTALAR PAQUETES"
-    echo "============================================================"
-    echo ""
-    echo "  [1] Python + pip"
-    echo "  [2] Node.js + npm"
-    echo "  [3] Go (golang)"
-    echo "  [4] Rust + Cargo"
-    echo "  [5] Java (OpenJDK)"
-    echo "  [6] Ruby"
-    echo "  [7] PHP"
-    echo "  [8] Flutter SDK"
-    echo "  [9] Build tools (cmake, ninja, clang)"
-    echo ""
-    echo "  [A] TODOS"
-    echo "  [S] Solo skills (sin paquetes)"
-    echo ""
-    echo -n "  Seleccion (ej: 1,2): "
-}
-
-# ============================================================
-# INSTALAR PAQUETES
-# ============================================================
-install_packages() {
-    local selection="$1"
-    
-    if [[ "$selection" == "S" ]]; then
-        info "Saltando paquetes..."
-        return
-    fi
-    
-    pkg update -y 2>/dev/null || true
-
-    echo "$selection" | tr ',' '\n' | while read -r choice; do
-        case "$choice" in
-            1) pkg install -y python pip 2>/dev/null && echo -e "  Python: ${GREEN}OK${NC}" ;;
-            2) pkg install -y nodejs npm 2>/dev/null && echo -e "  Node.js: ${GREEN}OK${NC}" ;;
-            3) pkg install -y golang 2>/dev/null && echo -e "  Go: ${GREEN}OK${NC}" ;;
-            4) pkg install -y rust 2>/dev/null && echo -e "  Rust: ${GREEN}OK${NC}" ;;
-            5) pkg install -y openjdk-17 2>/dev/null && echo -e "  Java: ${GREEN}OK${NC}" ;;
-            6) pkg install -y ruby 2>/dev/null && echo -e "  Ruby: ${GREEN}OK${NC}" ;;
-            7) pkg install -y php 2>/dev/null && echo -e "  PHP: ${GREEN}OK${NC}" ;;
-            8) pkg install -y dart 2>/dev/null && echo -e "  Flutter: ${GREEN}OK${NC}" ;;
-            9) pkg install -y cmake ninja clang make 2>/dev/null && echo -e "  Build tools: ${GREEN}OK${NC}" ;;
-        esac
-    done
-}
-
-# ============================================================
 # MAIN
 # ============================================================
 main() {
     echo ""
     echo "============================================================"
-    echo "  ZeroClaw SWAL Node - Termux Setup v3.7"
+    echo "  ZeroClaw SWAL Node - Termux Setup v3.8"
     echo "============================================================"
     echo ""
     
@@ -558,14 +454,10 @@ main() {
     check_services
     diagnose
     
-    show_menu
-    read -r selection
-    
-    echo ""
-    info "Instalando: $selection"
+    # Auto-seleccionar S (solo skills)
+    info "Instalando skills (seleccion automatica: S)..."
     
     install_base_tools
-    install_packages "$selection"
     configure_api_keys
     install_skills
     setup_workspace
