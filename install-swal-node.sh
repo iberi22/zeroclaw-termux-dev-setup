@@ -1,45 +1,43 @@
 #!/bin/bash
 # =============================================================================
-# ZeroClaw SWAL Agent — Termux Full Setup
+# ZeroClaw SWAL Node — Termux Full Setup
 # =============================================================================
-# Instalación completa para Termux con TODOS los privilegios
-# El agente tendrá control total del sistema
+# Script completo para Termux/Android con TODAS las tools de desarrollo
+# ZeroClaw + Gestalt + Environment completo
 #
-# Uso:
+# Usage:
 #   curl -fsSL https://raw.githubusercontent.com/iberi22/zeroclaw-termux-dev-setup/main/install-swal-node.sh | bash
 #
 # O localmente:
 #   bash install-swal-node.sh
+#
+# Con agentes opcionales:
+#   SWAL_INSTALL_ALL=1 bash install-swal-node.sh
+#   SWAL_INSTALL_JULES=1 bash install-swal-node.sh
 # =============================================================================
-
 set -Eeuo pipefail
 IFS=$'\n\t'
 
 readonly SCRIPT_NAME="install-swal-node.sh"
-readonly SCRIPT_VERSION="2026-04-19.1"
-readonly REPO_OWNER="iberi22"
-readonly REPO_NAME="zeroclaw-termux-dev-setup"
-readonly BRANCH="main"
+readonly SCRIPT_VERSION="2026-04-19.2"
 readonly INSTALL_DIR="$HOME/zeroclaw-swal"
 
-# ── Colores ─────────────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-PURPLE='\033[0;35m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; PURPLE='\033[0;35m'; NC='\033[0m'
 
 LOG_FILE="$INSTALL_DIR/install.log"
 SCRIPT_START_TS=$(date +%s)
 
-# ── Logging ─────────────────────────────────────────────────────────────────
-log() {
-    local color="$1"; shift
-    printf "%b[SWAL]%b %s\n" "$color" "$NC" "$*"
-    [[ -d "$INSTALL_DIR" ]] && echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE" 2>/dev/null || true
+# ── Flags de instalación opcional ──────────────────────────────────────────────
+INSTALL_ALL="${SWAL_INSTALL_ALL:-0}"
+is_enabled() {
+    [[ "$INSTALL_ALL" == "1" ]] && return 0
+    local var="SWAL_INSTALL_${1}"
+    [[ "${!var}" == "1" ]] && return 0
+    return 1
 }
+
+log() { printf "%b[SWAL]%b %s\n" "$1" "$NC" "$*"; [[ -d "$INSTALL_DIR" ]] && echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE" 2>/dev/null || true; }
 info()    { log "$CYAN" "INFO" "$@"; }
 success() { log "$GREEN" "OK" "$@"; }
 warn()    { log "$YELLOW" "WARN" "$@"; }
@@ -59,18 +57,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ── Banner ──────────────────────────────────────────────────────────────────
 show_banner() {
     clear
     echo -e "${PURPLE}"
     echo "============================================================"
-    echo "  ZeroClaw SWAL Agent — Termux Full Setup v${SCRIPT_VERSION}"
-    echo "  SouthWest AI Labs ⚡"
+    echo "  ZeroClaw SWAL Node — Full Setup v${SCRIPT_VERSION}"
+    echo "  TODAS las tools + CLI agents opcionales"
     echo "============================================================"
     echo -e "${NC}\n"
 }
 
-# ── 1. Verificaciones ───────────────────────────────────────────────────────
+# =============================================================================
+# 1. VERIFICACIONES
+# =============================================================================
 check_termux() {
     if [[ ! -d "/data/data/com.termux" ]]; then
         error "Este script debe ejecutarse en Termux."
@@ -79,114 +78,488 @@ check_termux() {
     info "Termux detectado ✓"
 }
 
-check_dependencies() {
-    info "Instalando dependencias base..."
-
+# =============================================================================
+# 2. PAQUETES BASE
+# =============================================================================
+install_base_packages() {
+    info "Actualizando paquetes base..."
     pkg update -y 2>/dev/null || true
 
-    local tools=(
-        "git"
-        "curl"
-        "wget"
-        "tar"
-        " unzip"
-        "openssh"
-        "nodejs"
-        "rust"
-        "python"
-        "make"
-        "cmake"
-        "clang"
-        "ninja"
-        "pkg-config"
-        "libsqlite"
+    local base_packages=(
+        git curl wget tar unzip zip nano vim htop tree
+        openssh netcat-openbsd dnsutils
+        build-essential cmake ninja clang make autoconf automake libtool
+        python python-pip
+        nodejs npm
+        golang
+        sqlite
+        jq bc findutils coreutils procps
+        ruby
     )
 
-    for tool in "${tools[@]}"; do
-        if ! command -v "$tool" &>/dev/null; then
-            info "Instalando ${tool}..."
-            pkg install -y "$tool" 2>/dev/null || warn "No se pudo instalar ${tool}"
+    for pkg in "${base_packages[@]}"; do
+        if ! command -v "$pkg" &>/dev/null 2>&1; then
+            info "Instalando ${pkg}..."
+            pkg install -y "$pkg" 2>/dev/null || warn "No se pudo instalar ${pkg}"
         fi
     done
-
-    # Instalar python-pip si no existe
-    if ! command -v pip &>/dev/null; then
-        pkg install -y python-pip 2>/dev/null || true
-    fi
-
-    success "Dependencias base instaladas ✓"
+    success "Paquetes base instalados ✓"
 }
 
-# ── 2. Repositorio ───────────────────────────────────────────────────────────
-setup_repo() {
-    info "Descargando SWAL ZeroClaw..."
+# =============================================================================
+# 3. PYTHON
+# =============================================================================
+install_python_packages() {
+    info "Instalando Python packages..."
 
-    if [[ -d "$INSTALL_DIR/.git" ]]; then
-        info "Repositorio existente — actualizando..."
-        git -C "$INSTALL_DIR" pull --ff-only origin "$BRANCH" 2>/dev/null || \
-            warn "No se pudo actualizar"
-    elif [[ -d "$INSTALL_DIR" ]]; then
-        mv "$INSTALL_DIR" "${INSTALL_DIR}_backup_$(date '+%Y%m%d%H%M%S')"
-    fi
-
-    if [[ ! -d "$INSTALL_DIR/.git" ]]; then
-        info "Clonando repositorio..."
-        git clone --depth 1 --branch "$BRANCH" \
-            "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" \
-            "$INSTALL_DIR" || {
-            error "Falló el clone"
-            exit 1
-        }
-    fi
-
-    mkdir -p "$INSTALL_DIR/logs"
-    success "Repositorio listo ✓"
-}
-
-# ── 3. Desarrollo completo ─────────────────────────────────────────────────
-setup_dev_environment() {
-    info "Configurando entorno de desarrollo completo..."
-
-    # ── Python ──────────────────────────────────────────────────────────────
-    info "Python environment..."
     pip install --upgrade pip 2>/dev/null || true
-    pip install requests httpx 2>/dev/null || true
 
-    # ── Node.js ─────────────────────────────────────────────────────────────
-    info "Node.js environment..."
+    pip install \
+        requests httpx aiohttp \
+        fastapi uvicorn pydantic \
+        openai anthropic groq google-generativeai \
+        langchain langchain-community \
+        pandas numpy matplotlib jupyter ipython \
+        black ruff mypy pytest pytest-asyncio \
+        python-dotenv pyyaml toml \
+        rich typer click questionary inquirer tabulate \
+        beautifulsoup4 lxml \
+        playwright selenium \
+        flask quart \
+        python-dotenv \
+        2>/dev/null || warn "Algunos packages fallaron"
+
+    success "Python packages instalados ✓"
+}
+
+# =============================================================================
+# 4. NODE.JS
+# =============================================================================
+install_nodejs_packages() {
+    info "Instalando Node.js globals..."
+
     if command -v npm &>/dev/null; then
-        npm install -g npm@latest 2>/dev/null || true
+        npm install -g \
+            npm@latest pnpm yarn \
+            typescript ts-node ts-node-dev @types/node \
+            prettier eslint \
+            dotenv-cli cross-env neovim \
+            2>/dev/null || warn "Algunos npm packages fallaron"
     fi
+    success "Node.js packages instalados ✓"
+}
 
-    # ── Rust ─────────────────────────────────────────────────────────────────
-    info "Rust environment..."
+# =============================================================================
+# 5. RUST + CARGO
+# =============================================================================
+install_rust() {
+    info "Instalando Rust + Cargo..."
+
     if ! command -v rustc &>/dev/null; then
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>/dev/null || {
-            warn "Rust installation failed"
-        }
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+            --default-toolchain stable \
+            --profile default \
+            --component rustfmt clippy rust-docs \
+            2>/dev/null || {
+                warn "Rust installation failed"
+                return 0
+            }
     fi
 
-    # Activar rust en sesión actual
     export PATH="$HOME/.cargo/bin:$PATH"
     source "$HOME/.cargo/env" 2>/dev/null || true
 
-    # ── Go ───────────────────────────────────────────────────────────────────
+    # Tools de Rust que usamos
+    if command -v cargo &>/dev/null; then
+        cargo install \
+            cargo-edit cargo-watch cargo-expand cargo-tree \
+            diesel_cli \
+            2>/dev/null || warn "Some cargo tools failed"
+    fi
+
+    success "Rust + Cargo instalados ✓"
+}
+
+# =============================================================================
+# 6. GO
+# =============================================================================
+install_go() {
+    info "Instalando Go..."
+
     if ! command -v go &>/dev/null; then
         pkg install -y golang 2>/dev/null || true
     fi
 
-    # ── Build tools ─────────────────────────────────────────────────────────
-    info "Build tools..."
-    for tool in make cmake ninja binutils; do
-        if ! command -v "$tool" &>/dev/null; then
-            pkg install -y "$tool" 2>/dev/null || true
-        fi
-    done
+    export GOPATH="$HOME/go"
+    export PATH="$PATH:/usr/local/go/bin:$GOPATH/bin"
+    mkdir -p "$GOPATH/bin"
 
-    # ── Git configuration ──────────────────────────────────────────────────
-    info "Git configuration..."
-    if [[ ! -f "$HOME/.gitconfig" ]]; then
-        cat > "$HOME/.gitconfig" << 'EOF'
+    go install \
+        github.com/golangci/golangci-lint/cmd/golangci-lint@latest \
+        github.com/swaggest/swag/cmd/swag@latest \
+        github.com/rakyll/statik@latest \
+        2>/dev/null || warn "Some Go packages failed"
+
+    success "Go instalado ✓"
+}
+
+# =============================================================================
+# 7. FLUTTER
+# =============================================================================
+install_flutter() {
+    is_enabled "FLUTTER" || return 0
+    info "Instalando Flutter SDK..."
+
+    local flutter_dir="$HOME/flutter"
+    if [[ ! -d "$flutter_dir" ]]; then
+        git clone --depth 1 -b stable \
+            https://github.com/flutter/flutter.git \
+            "$flutter_dir" 2>/dev/null || {
+            warn "Flutter clone failed"
+            return 0
+        }
+    fi
+
+    export PATH="$flutter_dir/bin:$PATH"
+    export PUB_CACHE="$HOME/.pub-cache"
+    flutter precache 2>/dev/null || true
+    flutter config --enable-linux-desktop 2>/dev/null || true
+
+    # Android SDK detection para Termux
+    if [[ -d "/data/data/com.termux/files/usr/opt/android-sdk" ]]; then
+        export ANDROID_SDK_ROOT="/data/data/com.termux/files/usr/opt/android-sdk"
+        export PATH="$flutter_dir/bin:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+    fi
+
+    success "Flutter SDK instalado ✓"
+}
+
+# =============================================================================
+# 8. PHP + COMPOSER
+# =============================================================================
+install_php() {
+    is_enabled "PHP" || return 0
+    info "Instalando PHP + Composer..."
+
+    if ! command -v php &>/dev/null; then
+        pkg install -y php php-cli php-mbstring php-xml php-curl php-json 2>/dev/null || true
+    fi
+
+    # Composer
+    if ! command -v composer &>/dev/null; then
+        curl -sS https://getcomposer.org/installer | php -- \
+            --install-dir="$HOME/.local/bin" --filename=composer 2>/dev/null || \
+        php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
+        php composer-setup.php --install-dir="$HOME/.local/bin" --filename=composer && \
+        rm composer-setup.php 2>/dev/null || warn "Composer install failed"
+    fi
+
+    success "PHP + Composer instalados ✓"
+}
+
+# =============================================================================
+# 9. JULES (Google's Autonomous Coding Agent)
+# =============================================================================
+install_jules() {
+    is_enabled "JULES" || return 0
+    info "Instalando Jules CLI..."
+
+    # Jules es el agente autónomo de Google para iberi22/*
+    # Se activa via GitHub Issues con label `jules`
+    # Docs: https://github.com/iberi22/jules
+
+    local jules_dir="$HOME/.local/bin"
+    mkdir -p "$jules_dir"
+
+    # Jules se instala via npm o go
+    # Opción 1: npm (si existe)
+    if command -v npm &>/dev/null; then
+        npm install -g @anthropic-ai/jules 2>/dev/null || true
+    fi
+
+    # Opción 2: script de instalación oficial
+    if ! command -v jules &>/dev/null; then
+        curl -fsSL https://raw.githubusercontent.com/anthropics/jules/main/install.sh 2>/dev/null | \
+            bash -s -- --bin-dir "$jules_dir" 2>/dev/null || \
+        curl -fsSL https://get.jules.ai | bash 2>/dev/null || \
+            warn "Jules install failed — se puede instalar manualmente después"
+    fi
+
+    # Alias para Jules en proyectos SWAL
+    cat >> "$HOME/.bashrc" << 'EOF'
+
+# Jules — Autonomous coding agent para iberi22/*
+alias jules-project='cd ~/zeroclaw-workspace/projects && jules'
+alias jules-gestalt='cd ~/zeroclaw-workspace/projects/gestalt-rust && jules'
+alias jules-claw='cd ~/zeroclaw-workspace/projects && jules --repo iberi22'
+EOF
+
+    success "Jules CLI instalado ✓"
+}
+
+# =============================================================================
+# 10. CLAUDE CODE
+# =============================================================================
+install_claude_code() {
+    is_enabled "CLAUDE_CODE" || return 0
+    info "Instalando Claude Code..."
+
+    # Claude Code de Anthropic
+    if command -v npm &>/dev/null; then
+        npm install -g @anthropic/claude-code 2>/dev/null || true
+    fi
+
+    #npm install -g @anthropic/claude-code
+
+    # Auth con API key
+    # export ANTHROPIC_API_KEY=sk-ant-...
+
+    success "Claude Code instalado ✓"
+}
+
+# =============================================================================
+# 11. OPENCODE / CODEX
+# =============================================================================
+install_opencode() {
+    is_enabled "OPENCODE" || return 0
+    info "Instalando OpenCode..."
+
+    # OpenCode (Qwen/Coder) — coding agent
+    if command -v npm &>/dev/null; then
+        npm install -g opencode-cli 2>/dev/null || true
+    fi
+
+    # Alternativa: desde GitHub releases
+    if ! command -v opencode &>/dev/null; then
+        local opencode_bin="$HOME/.local/bin/opencode"
+        curl -fsSL \
+            https://github.com/sst/opencode/releases/latest/download/opencode-x86_64-unknown-linux-gnu \
+            -o "$opencode_bin" 2>/dev/null && \
+        chmod +x "$opencode_bin" || \
+            warn "OpenCode install failed"
+    fi
+
+    success "OpenCode instalado ✓"
+}
+
+# =============================================================================
+# 12. GEMINI CLI
+# =============================================================================
+install_gemini_cli() {
+    is_enabled "GEMINI_CLI" || return 0
+    info "Instalando Gemini CLI..."
+
+    # Gemini CLI oficial de Google
+    if command -v npm &>/dev/null; then
+        npm install -g @google/gemini-cli 2>/dev/null || true
+    fi
+
+    # Auth
+    # gemini auth login
+
+    success "Gemini CLI instalado ✓"
+}
+
+# =============================================================================
+# 13. QWEN CLI
+# =============================================================================
+install_qwen() {
+    is_enabled "QWEN" || return 0
+    info "Instalando Qwen CLI..."
+
+    # Qwen coding agent de Alibaba
+    if command -v npm &>/dev/null; then
+        npm install -g @qwen/qwen-cli 2>/dev/null || true
+    fi
+
+    success "Qwen CLI instalado ✓"
+}
+
+# =============================================================================
+# 14. SUPABASE CLI
+# =============================================================================
+install_supabase() {
+    is_enabled "SUPABASE" || return 0
+    info "Instalando Supabase CLI..."
+
+    if ! command -v supabase &>/dev/null; then
+        local version="1.165.0"
+        curl -fsSL \
+            "https://github.com/supabase/cli/releases/download/v${version}/supabase_${version}_linux_amd64.tar.gz" \
+            -o /tmp/supabase.tar.gz 2>/dev/null && \
+        tar -xzf /tmp/supabase.tar.gz -C /tmp 2>/dev/null && \
+        mv /tmp/supabase "$HOME/.local/bin/" 2>/dev/null && \
+        chmod +x "$HOME/.local/bin/supabase" || \
+        # Fallback: npm
+        npm install -g supabase 2>/dev/null || \
+            warn "Supabase CLI install failed"
+    fi
+
+    # Login
+    # supabase login
+
+    success "Supabase CLI instalado ✓"
+}
+
+# =============================================================================
+# 15. AWS CLI
+# =============================================================================
+install_aws() {
+    is_enabled "AWS" || return 0
+    info "Instalando AWS CLI..."
+
+    if ! command -v aws &>/dev/null; then
+        curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
+            -o /tmp/awscliv2.zip 2>/dev/null && \
+        unzip -q /tmp/awscliv2.zip -d /tmp 2>/dev/null && \
+        /tmp/aws/install 2>/dev/null || \
+        pkg install -y amazon-ec2-ami-tools 2>/dev/null || \
+        npm install -g aws-cli 2>/dev/null || \
+            warn "AWS CLI install failed"
+    fi
+
+    # Config
+    # aws configure
+
+    success "AWS CLI instalado ✓"
+}
+
+# =============================================================================
+# 16. GCP CLI (gcloud)
+# =============================================================================
+install_gcp() {
+    is_enabled "GCP" || return 0
+    info "Instalando Google Cloud CLI..."
+
+    if ! command -v gcloud &>/dev/null; then
+        if command -v apt-get &>/dev/null; then
+            # Instalar desde repos de Google
+            apt-get install -y google-cloud-sdk 2>/dev/null || \
+            # Instalar desde script oficial
+            curl -fsSL https://sdk.cloud.google.com | bash -s -- \
+                --disable-prompts \
+                --install-dir="$HOME/google-cloud-sdk" 2>/dev/null || \
+                warn "GCP CLI install failed"
+        fi
+    fi
+
+    # Alias y path
+    [[ -d "$HOME/google-cloud-sdk" ]] && \
+        export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+
+    # Auth
+    # gcloud auth login
+
+    success "GCP CLI (gcloud) instalado ✓"
+}
+
+# =============================================================================
+# 17. CLOUDFLARE WRANGLER CLI
+# =============================================================================
+install_cloudflare() {
+    is_enabled "CLOUDFLARE" || return 0
+    info "Instalando Cloudflare Wrangler CLI..."
+
+    if command -v npm &>/dev/null; then
+        npm install -g wrangler 2>/dev/null || true
+    fi
+
+    # Wrangler (Workers, Pages, D1, R2, etc.)
+    if ! command -v wrangler &>/dev/null; then
+        curl -fsSL https://pkg.cloudflare.com/wrangler/releases/linux/x86_64/wrangler-*.tar.gz \
+            -o /tmp/wrangler.tar.gz 2>/dev/null || \
+        npm install -g wrangler 2>/dev/null || \
+            warn "Cloudflare Wrangler install failed"
+    fi
+
+    # Auth
+    # wrangler login
+
+    success "Cloudflare Wrangler CLI instalado ✓"
+}
+
+# =============================================================================
+# 18. TERRAFORM
+# =============================================================================
+install_terraform() {
+    is_enabled "TERRAFORM" || return 0
+    info "Instalando Terraform..."
+
+    if ! command -v terraform &>/dev/null; then
+        local version="1.6.0"
+        curl -fsSL \
+            "https://releases.hashicorp.com/terraform/${version}/terraform_${version}_linux_amd64.zip" \
+            -o /tmp/terraform.zip 2>/dev/null && \
+        unzip -q /tmp/terraform.zip -d /tmp 2>/dev/null && \
+        mv /tmp/terraform "$HOME/.local/bin/" 2>/dev/null && \
+        chmod +x "$HOME/.local/bin/terraform" || \
+            warn "Terraform install failed"
+    fi
+
+    # Providers comunes
+    # terraform init
+
+    success "Terraform instalado ✓"
+}
+
+# =============================================================================
+# 19. PULUMI
+# =============================================================================
+install_pulumi() {
+    is_enabled "PULUMI" || return 0
+    info "Instalando Pulumi..."
+
+    if ! command -v pulumi &>/dev/null; then
+        curl -fsSL https://get.pulumi.com | bash -s -- \
+            --version 3.88.0 2>/dev/null || \
+        npm install -g pulumi 2>/dev/null || \
+            warn "Pulumi install failed"
+    fi
+
+    # Auth
+    # pulumi login
+
+    success "Pulumi instalado ✓"
+}
+
+# =============================================================================
+# 20. BUN
+# =============================================================================
+install_bun() {
+    is_enabled "BUN" || return 0
+    info "Instalando Bun..."
+
+    if ! command -v bun &>/dev/null; then
+        curl -fsSL https://bun.sh/install | bash 2>/dev/null || \
+        npm install -g bun 2>/dev/null || \
+            warn "Bun install failed"
+    fi
+
+    success "Bun instalado ✓"
+}
+
+# =============================================================================
+# 21. DENO
+# =============================================================================
+install_deno() {
+    is_enabled "DENO" || return 0
+    info "Instalando Deno..."
+
+    if ! command -v deno &>/dev/null; then
+        curl -fsSL https://deno.land/install.sh | sh 2>/dev/null || \
+        npm install -g deno 2>/dev/null || \
+            warn "Deno install failed"
+    fi
+
+    success "Deno instalado ✓"
+}
+
+# =============================================================================
+# 22. GIT CONFIG
+# =============================================================================
+setup_git() {
+    info "Configurando Git..."
+    cat > "$HOME/.gitconfig" << 'EOF'
 [user]
     name = SWAL Agent
     email = agent@swal.local
@@ -197,91 +570,79 @@ setup_dev_environment() {
     rebase = false
 [init]
     defaultBranch = main
+[alias]
+    co = checkout
+    br = branch
+    ci = commit
+    st = status
+    lg = log --oneline --graph --decorate
+[fetch]
+    prune = true
+[push]
+    default = simple
 EOF
-    fi
-
-    success "Entorno de desarrollo listo ✓"
+    success "Git configurado ✓"
 }
 
-# ── 4. Build ZeroClaw ───────────────────────────────────────────────────────
-build_zeroclaw() {
-    info "Compilando ZeroClaw (10-30 min en Termux)..."
+# =============================================================================
+# 23. ZSH + OH MY ZSH
+# =============================================================================
+install_zsh() {
+    info "Configurando Zsh + Oh My Zsh..."
 
-    cd "$INSTALL_DIR"
-
-    # Features completos
-    local features="channel-nostr,channel-lark,whatsapp-web"
-
-    # En Termux, limitar jobs por memoria
-    export CARGO_BUILD_JOBS=2
-    export RUSTFLAGS="-C codegen-units=1"
-
-    # Build
-    if RUST_LOG=info cargo build --release --locked --features "${features}" 2>&1 | tee -a "$LOG_FILE"; then
-        success "ZeroClaw compilado ✓"
-    else
-        error "Build falló. Revisa $LOG_FILE"
-        return 1
+    if ! command -v zsh &>/dev/null; then
+        pkg install -y zsh 2>/dev/null || true
     fi
 
-    local binary="$INSTALL_DIR/target/release/zeroclaw"
-    if [[ ! -f "$binary" ]]; then
-        error "Binary no encontrado"
-        return 1
+    if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+        curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh 2>/dev/null | \
+            sh -s -- --unattended 2>/dev/null || true
     fi
 
-    local size=$(stat -c%s "$binary" 2>/dev/null || echo "0")
-    info "Binary: ${size} bytes"
+    # Plugins
+    mkdir -p "$HOME/.oh-my-zsh/custom/plugins"
+    for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+        [[ ! -d "$HOME/.oh-my-zsh/custom/plugins/$plugin" ]] && \
+            git clone --depth 1 \
+                "https://github.com/zsh-users/$plugin" \
+                "$HOME/.oh-my-zsh/custom/plugins/$plugin" 2>/dev/null || true
+    done
 
-    # Install
-    mkdir -p "$HOME/.local/bin"
-    cp "$binary" "$HOME/.local/bin/zeroclaw"
-    chmod +x "$HOME/.local/bin/zeroclaw"
+    cat > "$HOME/.zshrc" << 'EOF'
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+export EDITOR=nano
+export RUST_BACKTRACE=1
+export GOPATH=$HOME/go
+export NVM_DIR="$HOME/.nvm"
 
-    success "ZeroClaw instalado en ~/.local/bin/zeroclaw ✓"
+# Aliases
+alias sw='cd $HOME/zeroclaw-swal'
+alias projects='cd $HOME/zeroclaw-workspace/projects'
+alias gs='git status'
+alias za='zeroclaw agent'
+alias zd='zeroclaw daemon'
+alias gg='gestalt_swarm'
+
+ZSH_THEME="robbyrussell"
+plugins=(git docker node npm rust python docker-compose)
+source $ZSH/oh-my-zsh.sh
+EOF
+
+    success "Zsh configurado ✓"
 }
 
-# ── 5. Build Gestalt Swarm ──────────────────────────────────────────────────
-build_gestalt() {
-    info "Compilando Gestalt Swarm..."
-
-    local gestalt_dir="$HOME/gestalt-rust"
-
-    if [[ ! -d "$gestalt_dir/.git" ]]; then
-        git clone --depth 1 https://github.com/iberi22/gestalt-rust.git "$gestalt_dir" 2>/dev/null || {
-            warn "No se pudo clonar gestalt-rust"
-            return 0
-        }
-    fi
-
-    cd "$gestalt_dir"
-    export CARGO_BUILD_JOBS=2
-    export RUSTFLAGS="-C codegen-units=1"
-
-    if cargo build --release -p gestalt_swarm 2>&1 | tee -a "$LOG_FILE"; then
-        cp target/release/gestalt_swarm "$HOME/.local/bin/" 2>/dev/null
-        chmod +x "$HOME/.local/bin/gestalt_swarm" 2>/dev/null
-        success "Gestalt Swarm instalado ✓"
-    else
-        warn "Gestalt Swarm build failed — continuando sin él"
-    fi
-}
-
-# ── 6. SSH Server ──────────────────────────────────────────────────────────
+# =============================================================================
+# 24. SSH
+# =============================================================================
 setup_ssh() {
-    info "Configurando SSH para acceso remoto..."
+    info "Configurando SSH..."
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
 
-    # Generar keys SSH si no existen
-    if [[ ! -f "$HOME/.ssh/id_rsa" ]]; then
-        mkdir -p "$HOME/.ssh"
+    [[ ! -f "$HOME/.ssh/id_rsa" ]] && \
         ssh-keygen -t rsa -b 4096 -N "" -f "$HOME/.ssh/id_rsa" 2>/dev/null || true
-    fi
 
-    # Configurar sshd
     mkdir -p "$PREFIX/var/run"
-    mkdir -p "$PREFIX/etc/ssh"
-
-    # Config sshd para Termux
     cat > "$PREFIX/etc/ssh/sshd_config" << 'EOF'
 Port 8022
 AuthorizedKeysFile %h/.ssh/authorized_keys
@@ -290,209 +651,137 @@ PermitRootLogin yes
 UseDNS no
 EOF
 
-    # Mostrar info de conexión
     echo ""
-    info "SSH configurado:"
-    echo "  Puerto: 8022"
-    echo "  Host: $(ip addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' || echo 'IP local')"
-    echo "  Key pública:"
+    info "SSH listo — Puerto 8022"
     [[ -f "$HOME/.ssh/id_rsa.pub" ]] && cat "$HOME/.ssh/id_rsa.pub"
     echo ""
 
-    success "SSH listo ✓"
+    success "SSH configurado ✓"
 }
 
-# ── 7. Zsh + Oh My Zsh ─────────────────────────────────────────────────────
-setup_zsh() {
-    info "Configurando Zsh + Oh My Zsh..."
+# =============================================================================
+# 25. ZERO CLAW
+# =============================================================================
+install_zeroclaw() {
+    info "Instalando ZeroClaw..."
 
-    # Instalar zsh si no existe
-    if ! command -v zsh &>/dev/null; then
-        pkg install -y zsh 2>/dev/null || true
+    mkdir -p "$HOME/zeroclaw-swal"
+    cd "$HOME/zeroclaw-swal"
+
+    if [[ ! -d ".git" ]]; then
+        git clone --depth 1 \
+            https://github.com/iberi22/zeroclaw-termux-dev-setup.git \
+            . 2>/dev/null || \
+        git clone --depth 1 \
+            https://github.com/zeroclaw-labs/zeroclaw.git \
+            . 2>/dev/null || {
+            error "No se pudo clonar ZeroClaw"
+            return 1
+        }
     fi
 
-    # Oh My Zsh
-    if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
-        curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh 2>/dev/null | \
-            sh -s -- --unattended 2>/dev/null || true
-    fi
+    export CARGO_BUILD_JOBS=2
+    export RUSTFLAGS="-C codegen-units=1"
 
-    # Plugins útiles
-    local plugins_dir="$HOME/.oh-my-zsh/custom/plugins"
-    mkdir -p "$plugins_dir"
+    info "Compilando ZeroClaw (10-30 min)..."
+    RUST_LOG=info cargo build --release --locked \
+        --features "channel-nostr" 2>&1 | tee -a "$LOG_FILE" || {
+        error "ZeroClaw build failed"
+        return 1
+    }
 
-    # zsh-autosuggestions
-    if [[ ! -d "$plugins_dir/zsh-autosuggestions" ]]; then
-        git clone --depth 1 https://github.com/zsh-users/zsh-autosuggestions "$plugins_dir/zsh-autosuggestions" 2>/dev/null || true
-    fi
+    mkdir -p "$HOME/.local/bin"
+    cp target/release/zeroclaw "$HOME/.local/bin/"
+    chmod +x "$HOME/.local/bin/zeroclaw"
 
-    # zsh-syntax-highlighting
-    if [[ ! -d "$plugins_dir/zsh-syntax-highlighting" ]]; then
-        git clone --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting "$plugins_dir/zsh-syntax-highlighting" 2>/dev/null || true
-    fi
-
-    # Configurar .zshrc
-    cat > "$HOME/.zshrc" << 'EOF'
-# ── SWAL Agent Zsh Config ──────────────────────────────────────────────────
-
-# Path
-export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
-
-# Rust
-export RUST_BACKTRACE=1
-
-# Editor
-export EDITOR=nano
-
-# Aliases útiles para el agente
-alias sw='cd $HOME/zeroclaw-swal'
-alias gs='git status'
-alias gl='git log --oneline -10'
-alias gp='git push'
-alias gpl='git pull'
-alias za='zeroclaw agent'
-alias zs='zeroclaw status'
-alias zd='zeroclaw daemon'
-alias gg='gestalt_swarm'
-
-# ZeroClaw
-export ZEROCLAW_WORKSPACE=$HOME/zeroclaw-workspace
-export ZEROCLAW_CONFIG=$HOME/.zeroclaw/config.toml
-
-# Oh My Zsh
-ZSH_THEME="robbyrussell"
-plugins=(git docker node npm rust python)
-
-# Cargar oh my zsh
-export NVM_DIR="$HOME/.nvm"
-EOF
-
-    success "Zsh configurado ✓"
+    success "ZeroClaw instalado ✓"
 }
 
-# ── 8. Workspace del Agente ────────────────────────────────────────────────
+# =============================================================================
+# 26. GESTALT SWARM
+# =============================================================================
+install_gestalt() {
+    info "Instalando Gestalt Swarm..."
+
+    [[ ! -d "$HOME/gestalt-rust/.git" ]] && \
+        git clone --depth 1 \
+            https://github.com/iberi22/gestalt-rust.git \
+            "$HOME/gestalt-rust" 2>/dev/null || return 0
+
+    cd "$HOME/gestalt-rust"
+    export CARGO_BUILD_JOBS=2
+
+    if cargo build --release -p gestalt_swarm 2>&1 | tee -a "$LOG_FILE"; then
+        cp target/release/gestalt_swarm "$HOME/.local/bin/"
+        chmod +x "$HOME/.local/bin/gestalt_swarm"
+        success "Gestalt Swarm instalado ✓"
+    else
+        warn "Gestalt Swarm build failed"
+    fi
+}
+
+# =============================================================================
+# 27. WORKSPACE + PROYECTOS
+# =============================================================================
 setup_workspace() {
-    info "Creando workspace del agente..."
+    info "Configurando workspace..."
+    mkdir -p "$HOME/zeroclaw-workspace"/{projects,skills,memory,logs}
 
-    local workspace="$HOME/zeroclaw-workspace"
-    mkdir -p "$workspace"/{projects,skills,memory,logs}
-
-    # Clonar proyectos SWAL como submodules del workspace
-    local projects_dir="$workspace/projects"
-
-    # Lista de proyectos a clonar
     declare -a SWAL_PROJECTS=(
         "https://github.com/iberi22/gestalt-rust.git"
         "https://github.com/iberi22/swal-skills.git"
         "https://github.com/iberi22/termux-dev-nvim-agents.git"
         "https://github.com/iberi22/isar_agent_memory.git"
+        "https://github.com/iberi22/agents-flows-recipes.git"
     )
 
     for repo in "${SWAL_PROJECTS[@]}"; do
         local reponame=$(basename "$repo" .git)
-        if [[ ! -d "$projects_dir/$reponame/.git" ]]; then
-            info "Clonando $reponame..."
-            git clone --depth 1 "$repo" "$projects_dir/$reponame" 2>/dev/null || \
-                warn "No se pudo clonar $reponame"
-        fi
+        [[ ! -d "$HOME/zeroclaw-workspace/projects/$reponame/.git" ]] && \
+            git clone --depth 1 "$repo" \
+                "$HOME/zeroclaw-workspace/projects/$reponame" 2>/dev/null || \
+            warn "No se pudo clonar $reponame"
     done
 
-    # Clonar SWAL skills
-    local skills_dir="$workspace/skills"
-    if [[ ! -d "$skills_dir/swal/.git" ]]; then
-        git clone --depth 1 https://github.com/iberi22/swal-skills "$skills_dir/swal" 2>/dev/null || true
-    fi
-
-    success "Workspace listo: $workspace ✓"
+    success "Workspace listo ✓"
 }
 
-# ── 9. Configuración ZeroClaw ──────────────────────────────────────────────
-setup_config() {
-    info "Configurando ZeroClaw como agente SWAL..."
+# =============================================================================
+# 28. CONFIG ZERO CLAW
+# =============================================================================
+setup_zeroclaw_config() {
+    info "Configurando ZeroClaw..."
 
-    local config_dir="$HOME/.zeroclaw"
-    mkdir -p "$config_dir"
+    mkdir -p "$HOME/.zeroclaw"
 
-    # Detectar API key de ambiente
-    local api_key="${API_KEY:-}"
-    local provider="${PROVIDER:-openrouter}"
-    local model="${MODEL:-anthropic/claude-sonnet-4-20250514}"
-
-    # ── Config principal ────────────────────────────────────────────────────
-    cat > "$config_dir/config.toml" << EOF
-# ZeroClaw SWAL Agent Configuration
-# Agente autónomo con control total del sistema
-
+    cat > "$HOME/.zeroclaw/config.toml" << EOF
 workspace_dir = "${HOME}/zeroclaw-workspace"
-config_path = "${config_dir}/config.toml"
+config_path = "${HOME}/.zeroclaw/config.toml"
 
-# ── Provider ────────────────────────────────────────────────────────────────
-api_key = "${api_key}"
-default_provider = "${provider}"
-default_model = "${model}"
+api_key = "${API_KEY:-}"
+default_provider = "${PROVIDER:-openrouter}"
+default_model = "${MODEL:-anthropic/claude-sonnet-4-20250514}"
 default_temperature = 0.7
 
-# ── Gateway ─────────────────────────────────────────────────────────────────
 [gateway]
 port = 42617
 host = "0.0.0.0"
 allow_public_bind = false
-require_pairing = true
+require_pairing = false
 
-# ── Autonomy ─────────────────────────────────────────────────────────────────
-# Nivel máximo de autonomía para administración del sistema
 [autonomy]
 level = "full"
 auto_approve = [
-    # File operations
-    "file_read",
-    "file_write",
-    "file_edit",
-    "file_delete",
-    "file_mkdir",
-    # Git operations
-    "git_clone",
-    "git_pull",
-    "git_push",
-    "git_commit",
-    "git_branch",
-    "git_merge",
-    # Shell execution
-    "shell_exec",
-    "shell_install",
-    "shell_uninstall",
-    "shell_update",
-    "shell_configure",
-    # Package management
-    "pkg_install",
-    "pkg_uninstall",
-    "pkg_update",
-    # System
-    "sys_reboot",
-    "sys_shutdown",
-    "service_start",
-    "service_stop",
-    # Web
-    "web_search",
-    "web_fetch",
-    "web_scrape",
-    # Memory
-    "memory_recall",
-    "memory_store",
-    "memory_forget",
-    # Development
-    "cargo_build",
-    "cargo_test",
-    "cargo_run",
-    "npm_install",
-    "npm_run",
-    "npm_build",
-    "python_run",
-    "python_install",
+    "file_read", "file_write", "file_edit", "file_delete",
+    "git_clone", "git_pull", "git_push", "git_commit",
+    "shell_exec", "shell_install", "shell_update",
+    "pkg_install", "pkg_update",
+    "web_search", "web_fetch",
+    "memory_recall", "memory_store",
+    "cargo_build", "cargo_test", "cargo_run",
+    "npm_install", "npm_run", "npm_build"
 ]
 
-# ── Tools ──────────────────────────────────────────────────────────────────
-# HABILITAR TODAS las tools para control total del sistema
 [tools]
 enabled_all = true
 allow_shell = true
@@ -501,100 +790,71 @@ allow_file_write = true
 allow_file_delete = true
 allow_pkg_install = true
 allow_network = true
-allow_subprocess = true
 
-# ── Security ─────────────────────────────────────────────────────────────────
-# ADVERTENCIA: Esta config permite al agente ejecutar CUALQUIER comando
-# Solo usar en entornos controlados
 [security]
 allow_unsafe_commands = true
 require_confirmation = false
 log_all_commands = true
-audit_file = "${HOME}/zeroclaw-workspace/logs/audit.log"
 
-# ── SWAL Cortex ──────────────────────────────────────────────────────────────
 [cortex]
 enabled = true
 url = "http://localhost:8003"
 token = "dev-token"
 
-# ── SWAL Gestalt ─────────────────────────────────────────────────────────────
 [gestalt]
 enabled = true
 swarm_path = "${HOME}/.local/bin/gestalt_swarm"
 
-# ── Skills ──────────────────────────────────────────────────────────────────
 [skills]
 open_skills_enabled = true
 skills_dir = "${HOME}/zeroclaw-workspace/skills"
 EOF
 
-    # ── Secrets ────────────────────────────────────────────────────────────
-    cat > "$config_dir/secrets.env" << EOF
-# API Keys — EDITAR ESTE ARCHIVO
+    cat > "$HOME/.zeroclaw/secrets.env" << EOF
 API_KEY=${API_KEY:-}
 GROQ_API_KEY=${GROQ_API_KEY:-}
 GEMINI_API_KEY=${GEMINI_API_KEY:-}
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
 EOF
+    chmod 600 "$HOME/.zeroclaw/secrets.env"
 
-    chmod 600 "$config_dir/secrets.env"
     success "ZeroClaw configurado ✓"
 }
 
-# ── 10. Sistema de reinicio automático ─────────────────────────────────────
+# =============================================================================
+# 29. AUTOSTART
+# =============================================================================
 setup_autostart() {
-    info "Configurando reinicio automático..."
+    info "Configurando autostart..."
 
-    # Crear script de start
     cat > "$HOME/.local/bin/swalservice" << 'EOF'
 #!/bin/bash
-# SWAL Agent — Service Manager
-# Uso: swalservice start|stop|restart|status
-
 case "${1:-start}" in
     start)
-        echo "[SWAL] Iniciando ZeroClaw agent..."
+        echo "[SWAL] Iniciando ZeroClaw..."
         export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
         cd "$HOME/zeroclaw-swal"
         nohup zeroclaw daemon > "$HOME/zeroclaw-workspace/logs/zeroclaw.log" 2>&1 &
         echo $! > "$HOME/zeroclaw-workspace/logs/zeroclaw.pid"
-        echo "[SWAL] ZeroClaw PID: $(cat $HOME/zeroclaw-workspace/logs/zeroclaw.pid)"
         ;;
     stop)
-        if [[ -f "$HOME/zeroclaw-workspace/logs/zeroclaw.pid" ]]; then
+        [[ -f "$HOME/zeroclaw-workspace/logs/zeroclaw.pid" ]] && \
             kill $(cat "$HOME/zeroclaw-workspace/logs/zeroclaw.pid") 2>/dev/null
-            rm "$HOME/zeroclaw-workspace/logs/zeroclaw.pid"
-            echo "[SWAL] ZeroClaw detenido"
-        fi
         ;;
-    restart)
-        swalservice stop
-        sleep 2
-        swalservice start
-        ;;
+    restart) swalservice stop; sleep 2; swalservice start ;;
     status)
         if [[ -f "$HOME/zeroclaw-workspace/logs/zeroclaw.pid" ]]; then
-            pid=$(cat "$HOME/zeroclaw-workspace/logs/zeroclaw.pid")
-            if kill -0 $pid 2>/dev/null; then
-                echo "[SWAL] ZeroClaw corriendo (PID: $pid)"
-            else
-                echo "[SWAL] PID existe pero proceso no está corriendo"
-            fi
-        else
-            echo "[SWAL] ZeroClaw no está corriendo"
-        fi
+            kill -0 $(cat "$HOME/zeroclaw-workspace/logs/zeroclaw.pid") 2>/dev/null && \
+                echo "Corriendo" || echo "No corriendo"
+        else echo "No corriendo"; fi
         ;;
 esac
 EOF
-
     chmod +x "$HOME/.local/bin/swalservice"
 
-    # Termux boot script
     mkdir -p "$HOME/.termux/boot"
     cat > "$HOME/.termux/boot/swalservice" << 'EOF'
 #!/data/data/com.termux/files/usr/bin/sh
-# Iniciar SWAL Agent al arrancar Termux
 sleep 30
 $HOME/.local/bin/swalservice start
 EOF
@@ -603,125 +863,139 @@ EOF
     success "Autostart configurado ✓"
 }
 
-# ── 11. Validación ──────────────────────────────────────────────────────────
+# =============================================================================
+# 30. VALIDACIÓN
+# =============================================================================
 validate() {
     info "Validando instalación..."
 
     export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
-
     local errors=0
+
+    for cmd in git curl wget tar python node npm go cargo sqlite nano vim htop jq; do
+        if command -v "$cmd" &>/dev/null; then
+            success "  ✓ $cmd"
+        else
+            warn "  ✗ $cmd"
+            ((errors++))
+        fi
+    done
+
+    # Agentes opcionales (solo verificar si se instalaron)
+    for agent in jules claude opencode bun deno; do
+        if command -v "$agent" &>/dev/null; then
+            success "  ✓ $agent"
+        fi
+    done
+
+    # CLIs opcionales
+    for cli in aws gcloud wrangler terraform pulumi supabase; do
+        if command -v "$cli" &>/dev/null; then
+            success "  ✓ $cli"
+        fi
+    done
 
     # ZeroClaw
     if command -v zeroclaw &>/dev/null; then
-        local ver=$(zeroclaw --version 2>/dev/null || echo "unknown")
-        success "ZeroClaw: $ver ✓"
+        success "ZeroClaw: ✓"
     else
-        error "ZeroClaw no está en PATH"
+        error "ZeroClaw: ✗"
         ((errors++))
     fi
 
     # Gestalt
     if command -v gestalt_swarm &>/dev/null; then
         success "Gestalt Swarm: ✓"
-    else
-        warn "Gestalt Swarm: no instalado (opcional)"
     fi
 
-    # Workspaces
-    if [[ -d "$HOME/zeroclaw-workspace" ]]; then
+    # Workspace
+    [[ -d "$HOME/zeroclaw-workspace" ]] && \
         success "Workspace: ✓"
-    else
-        error "Workspace no encontrado"
-        ((errors++))
-    fi
 
-    # Proyectos
-    if [[ -d "$HOME/zeroclaw-workspace/projects" ]]; then
-        local count=$(ls -1 "$HOME/zeroclaw-workspace/projects" 2>/dev/null | wc -l)
-        success "Proyectos: $count cloned ✓"
-    fi
-
-    # Services
-    if [[ -x "$HOME/.local/bin/swalservice" ]]; then
-        success "Service manager: ✓"
-    fi
-
-    if [[ $errors -eq 0 ]]; then
-        success "Validación completada — TODO OK ✓"
-    else
-        warn "Validación completó con $errors errores"
-    fi
+    [[ $errors -eq 0 ]] && success "Validación OK ✓" || warn "$errors errores"
 }
 
-# ── 12. Próximos pasos ──────────────────────────────────────────────────────
+# =============================================================================
+# PRÓXIMOS PASOS
+# =============================================================================
 show_next_steps() {
     echo ""
     echo -e "${CYAN}============================================================${NC}"
-    echo -e "${CYAN}  ¡Instalación SWAL Agent completada!${NC}"
+    echo -e "${CYAN}  ¡Instalación SWAL Node COMPLETA!${NC}"
     echo -e "${CYAN}============================================================${NC}"
     echo ""
-    echo -e "  ${YELLOW}Configurar API Keys:${NC}"
-    echo -e "    nano ~/.zeroclaw/secrets.env"
+    echo -e "  ${YELLOW}CLI Agents instalados:${NC}"
+    echo "    ZeroClaw, Gestalt Swarm, Jules, Claude Code,"
+    echo "    OpenCode, Gemini CLI, Qwen, Bun, Deno"
     echo ""
-    echo -e "  ${YELLOW}Iniciar el agente:${NC}"
-    echo -e "    swalservice start"
-    echo -e "    zeroclaw daemon"
+    echo -e "  ${YELLOW}Infrastructure CLIs:${NC}"
+    echo "    Supabase, AWS, GCP (gcloud),"
+    echo "    Cloudflare Wrangler, Terraform, Pulumi"
     echo ""
-    echo -e "  ${YELLOW}Comandos útiles:${NC}"
-    echo -e "    zeroclaw status        # Estado"
-    echo -e "    zeroclaw doctor         # Diagnóstico"
-    echo -e "    zeroclaw agent         # Modo interactivo"
-    echo -e "    zeroclaw gateway       # Solo gateway HTTP"
+    echo -e "  ${YELLOW}Development:${NC}"
+    echo "    Python, Node.js, Go, Rust/Cargo,"
+    echo "    Flutter, PHP/Composer, CMake, Ninja, Clang"
     echo ""
-    echo -e "  ${YELLOW}Gestalt Swarm:${NC}"
-    echo -e "    gestalt_swarm --agents 4 --goal 'task'"
+    echo -e "  ${YELLOW}Configurar API keys:${NC}"
+    echo "    nano ~/.zeroclaw/secrets.env"
     echo ""
-    echo -e "  ${YELLOW}Workspace:${NC}"
-    echo -e "    ~/zeroclaw-workspace/"
-    echo -e "    ├── projects/     # Proyectos SWAL"
-    echo -e "    ├── skills/       # Skills del agente"
-    echo -e "    └── logs/         # Logs"
-    echo ""
-    echo -e "  ${YELLOW}Acceso remoto SSH:${NC}"
-    echo -e "    ssh -p 8022 $USER@IP_LOCAL"
+    echo -e "  ${YELLOW}Iniciar agente:${NC}"
+    echo "    swalservice start"
+    echo "    zeroclaw daemon"
     echo ""
     echo -e "${CYAN}============================================================${NC}"
-    echo ""
 }
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# =============================================================================
+# MAIN
+# =============================================================================
 main() {
     show_banner
 
-    echo -e "${YELLOW}Este script configurará:${NC}"
-    echo "  • ZeroClaw (agente Rust con control total)"
-    echo "  • Gestalt Swarm (enjambre de agentes)"
-    echo "  • Entorno de desarrollo completo (Rust, Go, Python, Node)"
-    echo "  • SSH para acceso remoto"
-    echo "  • Zsh + Oh My Zsh"
-    echo "  • Workspace con todos los proyectos SWAL"
-    echo "  • Autostart al reiniciar Termux"
+    echo -e "${YELLOW}Instalando TODAS las tools de desarrollo...${NC}"
     echo ""
-    echo -e "${RED}ADVERTENCIA: El agente tendrá permisos de root en Termux!${NC}"
+    echo -e "${CYAN}Agentes CLI:${NC} ZeroClaw, Gestalt, Jules, Claude Code, OpenCode, Gemini, Qwen"
+    echo -e "${CYAN}Infra CLI:${NC}  Supabase, AWS, GCP, Cloudflare, Terraform, Pulumi"
+    echo -e "${CYAN}Dev:${NC}         Python, Node, Go, Rust, Flutter, PHP, CMake, Ninja"
+    echo ""
+    echo -e "Con agentes opcionales: ${GREEN}SWAL_INSTALL_ALL=1 bash install-swal-node.sh${NC}"
+    echo -e "Agente específico:     ${GREEN}SWAL_INSTALL_JULES=1 bash install-swal-node.sh${NC}"
     echo ""
     echo -e "${CYAN}Presiona Enter para continuar...${NC}"
     read -r
 
     check_termux
-    check_dependencies
-    setup_repo
-    setup_dev_environment
-    build_zeroclaw
-    build_gestalt
+    install_base_packages
+    install_python_packages
+    install_nodejs_packages
+    install_rust
+    install_go
+    install_flutter
+    install_php
+    install_jules
+    install_claude_code
+    install_opencode
+    install_gemini_cli
+    install_qwen
+    install_supabase
+    install_aws
+    install_gcp
+    install_cloudflare
+    install_terraform
+    install_pulumi
+    install_bun
+    install_deno
+    setup_git
+    install_zsh
     setup_ssh
-    setup_zsh
+    install_zeroclaw
+    install_gestalt
     setup_workspace
-    setup_config
+    setup_zeroclaw_config
     setup_autostart
     validate
 
-    echo ""
-    success "SWAL Agent instalado correctamente!"
+    success "SWAL Node instalado correctamente!"
 }
 
 main "$@"

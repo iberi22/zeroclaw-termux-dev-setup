@@ -733,3 +733,19 @@ This list is generated from the GitHub contributors graph and updates automatica
     </picture>
   </a>
 </p>
+
+---
+
+## SWAL Node Setup (Desarrollo Completo)
+
+Setup completo para replicar el entorno de desarrollo ZeroClaw con todas las tools SWAL:
+
+`ash
+# Docker (completo)
+curl -fsSL https://raw.githubusercontent.com/iberi22/zeroclaw-termux-dev-setup/master/bootstrap.sh | bash
+
+# Termux
+curl -fsSL https://raw.githubusercontent.com/iberi22/zeroclaw-termux-dev-setup/master/install-swal-node.sh | bash
+`
+
+Ver [SWAN_PLAN.md](./SWAN_PLAN.md) para detalles completos.

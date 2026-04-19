@@ -61,3 +61,17 @@ rust_out
 
 # Auto-generated Tauri schemas
 apps/tauri/gen/schemas/
+
+# SWAN Node - volumes and local state
+/volumes/
+/.zeroclaw/workspace/
+/cortex/
+
+# SSH keys (never push)
+*.pub
+id_rsa*
+id_ed25519*
+authorized_keys
+
+# ZeroClaw local config
+zeroclaw-workspace/

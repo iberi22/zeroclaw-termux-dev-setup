@@ -1,65 +1,86 @@
 # =============================================================================
-# ZeroClaw SWAL Agent — Docker Compose
+# ZeroClaw SWARM Node — Docker Compose
 # =============================================================================
-# ZeroClaw como AGENTE-controlado via HTTP API
-# - Gateway HTTP API en puerto 42617
-# - Workspace de OpenClaw migrado + proyectos SWAL
-# - Todas las tools habilitadas
+# ZeroClaw comparte el WORKSPACE de OpenClaw directamente
+# Ambos leen/escriben los mismos archivos de memoria e identidad
 # =============================================================================
 
 services:
-  # --------------------------------------------------------------------------
-  # ZeroClaw — Agente SWAL
-  # --------------------------------------------------------------------------
-  zeroclaw-swal:
-    image: swal-zeroclaw:latest
-    container_name: swal-zeroclaw-agent
+  # ── Nodo ZeroClaw ──────────────────────────────────────────────────────────
+  zeroclaw-node:
+    image: zeroclaw-swan-node:latest
+    container_name: ${NODE_NAME:-zeroclaw-swan-node}
+    hostname: ${NODE_HOSTNAME:-swan-node}
     restart: unless-stopped
+
     env_file:
-      - .env.swal
+      - ./config/.env
 
     environment:
-      # ── ZeroClaw Core ──────────────────────────────────────────────────────
+      # ── ZeroClaw ──────────────────────────────────────────────────────────
       - API_KEY=${API_KEY}
       - PROVIDER=${PROVIDER:-openrouter}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-anthropic/claude-sonnet-4-20250514}
-      - ZEROCLAW_GATEWAY_PORT=42617
-      - ZEROCLAW_WORKSPACE=/zeroclaw-data/workspace
-      - HOME=/zeroclaw-data
+      - DEFAULT_TEMPERATURE=${DEFAULT_TEMPERATURE:-0.7}
+      - ZEROCLAW_GATEWAY_PORT=${ZEROCLAW_GATEWAY_PORT:-42617}
+      - ZEROCLAW_WORKSPACE=${OPENCLAW_WORKSPACE:-C:/Users/belal/.openclaw/workspace}
+      - ZEROCLAW_CONFIG=/zeroclaw/config.toml
 
-      # ── Tools — TODAS HABILITADAS ─────────────────────────────────────────
-      - ZEROCLAW_ALLOW_SHELL=true
-      - ZEROCLAW_ALLOW_GIT=true
-      - ZEROCLAW_ALLOW_FILE_WRITE=true
-      - ZEROCLAW_ALLOW_FILE_DELETE=true
+      # ── Autonomy ─────────────────────────────────────────────────────────
+      - AUTONOMY_LEVEL=full
 
-      # ── SWAL Cortex ────────────────────────────────────────────────────────
-      - CORTEX_URL=${CORTEX_URL:-http://host.docker.internal:8003}
+      # ── Cortex ───────────────────────────────────────────────────────────
+      - CORTEX_ENABLED=${CORTEX_ENABLED:-true}
+      - CORTEX_URL=${CORTEX_URL:-http://cortex:8003}
       - CORTEX_TOKEN=${CORTEX_TOKEN:-dev-token}
-      - SWAL_CORTEX_ENABLED=true
 
-      # ── Logging ────────────────────────────────────────────────────────────
+      # ── SSH ─────────────────────────────────────────────────────────────
+      - SSH_PORT=${SSH_PORT:-2222}
+
+      # ── Logging ───────────────────────────────────────────────────────────
       - RUST_LOG=${RUST_LOG:-info,zeroclaw=debug}
       - RUST_BACKTRACE=1
 
     volumes:
-      # ── Workspace de ZeroClaw (migrado de OpenClaw) ──────────────────────
-      # Aquí vive la memoria migrada, skills, config
-      - swal-zeroclaw-data:/zeroclaw-data
+      # ══════════════════════════════════════════════════════════════════════
+      # WORKSPACE COMPARTIDO con OpenClaw
+      # ══════════════════════════════════════════════════════════════════════
+      # ZeroClaw y OpenClaw usan los MISMOS archivos de memoria e identidad
+      # Ambos leen/escriben los mismos MEMORY.md, SOUL.md, AGENTS.md, etc.
+      #
+      # En Windows: path al workspace de OpenClaw
+      # En Linux/Mac: ~/.openclaw/workspace
+      # ─────────────────────────────────────────────────────────────────────
+      - ${OPENCLAW_WORKSPACE:-C:/Users/belal/.openclaw/workspace}:/zeroclaw/workspace:rw
 
-      # ── Workspace original de OpenClaw (LECTURA) ──────────────────────────
-      # Acceso de solo lectura al workspace actual de OpenClaw
-      # para que ZeroClaw pueda leer AGENTS.md, SOUL.md, MEMORY.md, etc.
-      - ${OPENCLAW_WORKSPACE:-C:/Users/belal/.openclaw/workspace}:/openclaw-workspace:ro
+      # Skills de OpenClaw (~/clawd/skills)
+      - ${OPENCLAW_SKILLS:-C:/Users/belal/clawd/skills}:/zeroclaw/skills/openclaw:ro
 
-      # ── Proyectos SWAL (ESCRITURA) ────────────────────────────────────────
-      # Proyectos en los que ZeroClaw puede trabajar
-      - ${SWAL_PROJECTS_DIR:-C:/Users/belal/Projects}:/swal-projects:rw
+      # ══════════════════════════════════════════════════════════════════════
+      # PROYECTOS de desarrollo (donde trabaja el agente)
+      # ══════════════════════════════════════════════════════════════════════
+      - ${SWAL_PROJECTS_DIR:-C:/Users/belal}:/swal-projects:rw
+
+      # SSH keys del nodo
+      - ./volumes/ssh:/zeroclaw/ssh
+
+      # Logs del nodo
+      - ./volumes/logs:/zeroclaw/logs
 
     ports:
       - "${ZEROCLAW_GATEWAY_PORT:-42617}:42617"
+      - "${SSH_PORT:-2222}:2222"
 
-    # Recursos — agente necesita memoria
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:42617/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+    networks:
+      - swan-net
+
     deploy:
       resources:
         limits:
@@ -69,45 +90,27 @@ services:
           cpus: '0.5'
           memory: 256M
 
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:42617/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-    networks:
-      - swal-net
-
-  # --------------------------------------------------------------------------
-  # Cortex Memory Server (solo si no corre en host)
-  # --------------------------------------------------------------------------
+  # ── Cortex Memory (interno) ───────────────────────────────────────────────
   cortex:
     image: ${CORTEX_IMAGE:-ghcr.io/iberi22/cortex:latest}
-    container_name: swal-cortex
+    container_name: ${NODE_NAME:-zeroclaw-swan-node}-cortex
     restart: unless-stopped
     environment:
       - CORTEX_TOKEN=${CORTEX_TOKEN:-dev-token}
-    ports:
-      - "8003:8003"
     volumes:
-      - cortex-data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8003/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
+      - ./volumes/cortex:/data
+    ports:
+      - "${CORTEX_PORT:-8003}:8003"
     networks:
-      - swal-net
+      - swan-net
     profiles:
       - with-cortex
 
 volumes:
-  swal-zeroclaw-data:
-    driver: local
-  cortex-data:
-    driver: local
+  ssh:
+  logs:
+  cortex:
 
 networks:
-  swal-net:
+  swan-net:
     driver: bridge
