@@ -1,9 +1,10 @@
 #!/bin/bash
 # ============================================================
-# ZeroClaw SWAL Node — Termux Setup v3.4
+# ZeroClaw SWAL Node — Termux Setup v3.5
 # Interactive installer con diagnóstico y reparación de config
 # Admin privileges para instalación completa de paquetes
 # Incluye logo SWAL con oh-my-logo (colores OrionHealth)
+# Autonomy level: supervised (pide permiso para comandos privileged)
 # ============================================================
 set -euo pipefail
 
@@ -446,38 +447,77 @@ configure_api_keys() {
 }
 
 # ============================================================
-# INSTALAR SKILLS
+# INSTALAR SKILLS (desde GitHub)
 # ============================================================
 install_skills() {
-    info "Instalando SWAL Skills..."
+    info "Instalando SWAL Skills desde GitHub..."
     
     mkdir -p "$SKILLS_DIR"
     
+    # URL del repo de skills SWAL
+    local swal_skills_repo="https://github.com/iberi22/swal-skills.git"
+    local temp_skill_dir="/data/tmp/swal-skills-temp"
+    
+    # Clonar repo temporal si no existe
+    if [[ ! -d "$temp_skill_dir" ]]; then
+        echo -n "  Clonando swal-skills repo... "
+        if git clone --depth 1 "$swal_skills_repo" "$temp_skill_dir" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC}"
+        else
+            echo -e "${YELLOW}⚠ falló (offline?)${NC}"
+            warn "No se pudo clonar swal-skills, usando skills locales"
+        fi
+    fi
+    
+    # Skills a instalar
     local skills=(
         "cortex-memory"
         "sales-agent"
         "minimax-tools"
+        "gestalt-swarm"
     )
     
     for skill in "${skills[@]}"; do
         echo -n "  $skill... "
         mkdir -p "$SKILLS_DIR/$skill"
-        if [[ ! -f "$SKILLS_DIR/$skill/SKILL.md" ]]; then
-            cat > "$SKILLS_DIR/$skill/SKILL.md" << EOF
+        
+        # Si existe en el repo clonado, copiarlo
+        if [[ -d "$temp_skill_dir/skills/$skill" ]]; then
+            cp -r "$temp_skill_dir/skills/$skill/"* "$SKILLS_DIR/$skill/" 2>/dev/null
+            echo -e "${GREEN}✓ (from repo)${NC}"
+        else
+            # Crear SKILL.md básico como fallback
+            if [[ ! -f "$SKILLS_DIR/$skill/SKILL.md" ]]; then
+                cat > "$SKILLS_DIR/$skill/SKILL.md" << EOF
 ---
 name: $skill
 description: "SWAL Node skill - $skill"
+version: 1.0.0
 ---
 
 # $skill
 
-Skill instalado por setup-termux.sh v3.4
+Skill instalado por setup-termux.sh v3.5
+
+## Descripción
+Skill para SWAL Node en Termux.
+
+## Uso
+Este skill proporciona contexto y herramientas para el agente ZeroClaw.
 EOF
+            fi
+            echo -e "${YELLOW}⚠ (local)${NC}"
         fi
-        echo -e "${GREEN}✓${NC}"
     done
     
+    # Limpiar repo temporal
+    [[ -d "$temp_skill_dir" ]] && rm -rf "$temp_skill_dir"
+    
     success "Skills instalados en $SKILLS_DIR"
+    
+    # Mostrar skills instalados
+    local count=$(find "$SKILLS_DIR" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
+    info "Total: $count skills"
 }
 
 # ============================================================
