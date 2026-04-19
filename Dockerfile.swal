@@ -1,0 +1,168 @@
+# =============================================================================
+# ZeroClaw SWAL Node — Dockerfile
+# SouthWest AI Labs — ZeroClaw + Gestalt Swarm + Cortex
+# =============================================================================
+# syntax=docker/dockerfile:1.7
+
+# ── Stage 0: Web UI Build ─────────────────────────────────────────────────
+FROM node:22-alpine AS web-builder
+WORKDIR /web
+COPY web/package.json web/package-lock.json* ./
+RUN npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts
+COPY web/ .
+RUN npm run build
+
+# ── Stage 1: Rust Build ────────────────────────────────────────────────────
+FROM rust:1.94-slim@sha256:da9dab7a6b8dd428e71718402e97207bb3e54167d37b5708616050b1e8f60ed6 AS builder
+
+WORKDIR /app
+ARG RUST_VERSION="1.94"
+ARG FEATURES="channel-lark,whatsapp-web"
+
+# ── Build dependencies ────────────────────────────────────────────────────
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+        pkg-config \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Clone Gestalt Swarm (para integración SWAL) ───────────────────────────
+ARG GESTALT_REPO="https://github.com/iberi22/gestalt-rust.git"
+ARG GESTALT_BRANCH="main"
+RUN --mount=type=cache,id=gestalt-git,target=/root/.cache/git,sharing=locked \
+    git clone --depth 1 --branch ${GESTALT_BRANCH} ${GESTALT_REPO} /tmp/gestalt-rust
+
+# Build Gestalt Swarm binary
+RUN --mount=type=cache,id=gestalt-cargo,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=gestalt-target,target=/tmp/gestalt-target,sharing=locked \
+    cd /tmp/gestalt-rust && \
+    cargo build --release -p gestalt_swarm && \
+    mkdir -p /app/gestalt/bin && \
+    cp target/release/gestalt_swarm /app/gestalt/bin/ && \
+    strip /app/gestalt/bin/gestalt_swarm
+
+# ── Clone SWAL Skills ────────────────────────────────────────────────────
+ARG SWAL_SKILLS_REPO="https://github.com/iberi22/swal-skills.git"
+RUN --mount=type=cache,id=swal-git,target=/root/.cache/git,sharing=locked \
+    git clone --depth 1 ${SWAL_SKILLS_REPO} /app/swal-skills
+
+# ── Clone y cache dependencies ────────────────────────────────────────────
+COPY Cargo.toml Cargo.lock ./
+COPY crates/robot-kit/ crates/robot-kit/
+COPY crates/aardvark-sys/ crates/aardvark-sys/
+COPY apps/tauri/Cargo.toml apps/tauri/Cargo.toml
+
+RUN mkdir -p src benches apps/tauri/src \
+    && echo "fn main() {}" > src/main.rs \
+    && echo "" > src/lib.rs \
+    && echo "fn main() {}" > benches/agent_benchmarks.rs \
+    && echo "fn main() {}" > apps/tauri/src/main.rs \
+    && echo "fn main() {}" > apps/tauri/build.rs
+
+RUN --mount=type=cache,id=zeroclaw-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=zeroclaw-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=zeroclaw-target,target=/app/target,sharing=locked \
+    cargo build --release --locked --features "${FEATURES}"
+
+RUN rm -rf src benches
+
+# ── Full source build ────────────────────────────────────────────────────
+COPY src/ src/
+COPY benches/ benches/
+COPY *.rs .
+RUN touch src/main.rs
+
+RUN --mount=type=cache,id=zeroclaw-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=zeroclaw-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=zeroclaw-target,target=/app/target,sharing=locked \
+    rm -rf target/release/.fingerprint/zeroclawlabs-* \
+           target/release/deps/zeroclawlabs-* \
+           target/release/incremental/zeroclawlabs-* && \
+    cargo build --release --locked --features "${FEATURES}" && \
+    cp target/release/zeroclaw /app/zeroclaw && \
+    strip /app/zeroclaw
+
+# Verify binary size (sanity check)
+RUN size=$(stat -c%s /app/zeroclaw) && \
+    if [ "$size" -lt 1000000 ]; then \
+      echo "ERROR: binary too small (${size} bytes), likely dummy build artifact" && exit 1; fi
+
+# ── Prepare runtime directory ────────────────────────────────────────────
+RUN mkdir -p /zeroclaw-data/.zeroclaw /zeroclaw-data/workspace /zeroclaw-data/skills && \
+    printf '%s\n' \
+        '# ZeroClaw SWAL Configuration' \
+        '# SWAL Node — SouthWest AI Labs' \
+        '' \
+        'workspace_dir = "/zeroclaw-data/workspace"' \
+        'config_path = "/zeroclaw-data/.zeroclaw/config.toml"' \
+        'api_key = ""' \
+        'default_provider = "openrouter"' \
+        'default_model = "anthropic/claude-sonnet-4-20250514"' \
+        'default_temperature = 0.7' \
+        '' \
+        '[gateway]' \
+        'port = 42617' \
+        'host = "[::]"' \
+        'allow_public_bind = false' \
+        'require_pairing = true' \
+        'web_dist_dir = "/zeroclaw-data/web/dist"' \
+        '' \
+        '[autonomy]' \
+        'level = "supervised"' \
+        'auto_approve = ["file_read", "memory_recall", "memory_store", "web_search_tool", "web_fetch", "calculator", "glob_search", "content_search", "image_info", "weather"]' \
+        '' \
+        '# ── SWAL Cortex Integration ──────────────────────────────────────' \
+        '[cortex]' \
+        'enabled = true' \
+        'url = "http://cortex:8003"' \
+        'token = "dev-token"' \
+        '' \
+        '# ── SWAL Gestalt Integration ─────────────────────────────────────' \
+        '[gestalt]' \
+        'enabled = false' \
+        'swarm_path = "/app/gestalt/bin/gestalt_swarm"' \
+        '' \
+        '# ── SWAL Skills ─────────────────────────────────────────────────' \
+        '[skills]' \
+        'open_skills_enabled = true' \
+        'open_skills_dir = "/app/swal-skills"' \
+        > /zeroclaw-data/.zeroclaw/config.toml && \
+    chown -R 65534:65534 /zeroclaw-data
+
+# Copy Gestalt binary
+COPY --from=builder /app/gestalt /app/gestalt
+COPY --from=builder /app/swal-skills /app/swal-skills
+
+# ── Stage 2: Runtime ────────────────────────────────────────────────────
+FROM debian:trixie-slim@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba AS runtime
+
+RUN apt-get update && apt-get install -y \
+        ca-certificates \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /zeroclaw-data /zeroclaw-data
+COPY --from=builder /app/zeroclaw /usr/local/bin/zeroclaw
+COPY --from=web-builder /web/dist /zeroclaw-data/web/dist
+COPY --from=builder /app/gestalt /app/gestalt
+COPY --from=builder /app/swal-skills /app/swal-skills
+
+# Ensure UTF-8
+ENV LANG=C.UTF-8
+ENV ZEROCLAW_WORKSPACE=/zeroclaw-data/workspace
+ENV HOME=/zeroclaw-data
+ENV RUST_LOG=info,zeroclaw=debug
+
+WORKDIR /zeroclaw-data
+USER 65534:65534
+
+EXPOSE 42617
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=15s \
+    CMD ["zeroclaw", "status", "--format=exit-code"]
+
+ENTRYPOINT ["zeroclaw"]
+CMD ["daemon"]

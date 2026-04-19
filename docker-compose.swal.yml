@@ -1,0 +1,163 @@
+# =============================================================================
+# SWAL ZeroClaw Node — Docker Compose
+# =============================================================================
+# SouthWest AI Labs — ZeroClaw + Gestalt Swarm + Cortex Integration
+#
+# Uso:
+#   cp .env.swal.example .env.swal
+#   # Editar .env.swal con API keys
+#   docker compose -f docker-compose.swal.yml up -d
+#
+# URLs:
+#   Gateway:  http://localhost:42617
+#   API Docs: http://localhost:42617/docs
+# =============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # ZeroClaw SWAL Node
+  # --------------------------------------------------------------------------
+  zeroclaw-swal:
+    build:
+      context: .
+      dockerfile: Dockerfile.swal
+      args:
+        RUST_VERSION: "1.94"
+    container_name: swal-zeroclaw-node
+    restart: unless-stopped
+    env_file:
+      - .env.swal
+
+    environment:
+      # ── ZeroClaw Core ──────────────────────────────────────────────────────
+      - API_KEY=${API_KEY}
+      - PROVIDER=${PROVIDER:-openrouter}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-anthropic/claude-sonnet-4-20250514}
+      - DEFAULT_TEMPERATURE=${DEFAULT_TEMPERATURE:-0.7}
+      - ZEROCLAW_GATEWAY_PORT=${ZEROCLAW_GATEWAY_PORT:-42617}
+      - ZEROCLAW_WORKSPACE=/zeroclaw-data/workspace
+      - HOME=/zeroclaw-data
+
+      # ── SWAL Integration ───────────────────────────────────────────────────
+      # Cortex Memory System
+      - CORTEX_URL=${CORTEX_URL:-http://cortex:8003}
+      - CORTEX_TOKEN=${CORTEX_TOKEN:-dev-token}
+      - SWAL_CORTEX_ENABLED=${SWAL_CORTEX_ENABLED:-true}
+
+      # Gestalt Swarm
+      - GESTALT_BIN_PATH=/app/gestalt/bin
+      - SWAL_GESTALT_ENABLED=${SWAL_GESTALT_ENABLED:-false}
+      - GESTALT_MAX_AGENTS=${GESTALT_MAX_AGENTS:-10}
+      - GESTALT_PROVIDER=${GESTALT_PROVIDER:-groq}
+
+      # ── Security ───────────────────────────────────────────────────────────
+      - ZEROCLAW_ALLOW_PUBLIC_BIND=${ZEROCLAW_ALLOW_PUBLIC_BIND:-false}
+      - ZEROCLAW_REQUIRE_PAIRING=${ZEROCLAW_REQUIRE_PAIRING:-true}
+
+      # ── Logging ────────────────────────────────────────────────────────────
+      - RUST_LOG=${RUST_LOG:-info,zeroclaw=debug}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-1}
+
+    volumes:
+      # Persist workspace, config, and skills
+      - swal-workspace:/zeroclaw-data/workspace
+      - swal-config:/zeroclaw-data/.zeroclaw
+      # Gestalt binaries mounted read-only
+      - gestalt-binaries:/app/gestalt:ro
+      # Skills from SWAL skills repo
+      - swal-skills:/app/swal-skills:ro
+
+    ports:
+      - "${ZEROCLAW_GATEWAY_PORT:-42617}:${ZEROCLAW_GATEWAY_PORT:-42617}"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+
+    healthcheck:
+      test: ["CMD", "zeroclaw", "status", "--format=exit-code"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    networks:
+      - swal-net
+
+  # --------------------------------------------------------------------------
+  # Cortex Memory Server (para desarrollo local)
+  # --------------------------------------------------------------------------
+  cortex:
+    image: ${CORTEX_IMAGE:-ghcr.io/iberi22/cortex:latest}
+    container_name: swal-cortex
+    restart: unless-stopped
+    environment:
+      - CORTEX_TOKEN=${CORTEX_TOKEN:-dev-token}
+      - CORTEX_PORT=8003
+    ports:
+      - "${CORTEX_PORT:-8003}:8003"
+    volumes:
+      - cortex-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - swal-net
+    profiles:
+      - with-cortex  # Solo iniciar con: docker compose --profile with-cortex up
+
+  # --------------------------------------------------------------------------
+  # Gestalt Swarm Bridge (Rust binary)
+  # --------------------------------------------------------------------------
+  gestalt-swarm:
+    image: ${GESTALT_IMAGE:-ghcr.io/iberi22/gestalt-swarm:latest}
+    container_name: swal-gestalt-swarm
+    restart: unless-stopped
+    command: ["daemon", "--port", "9150"]
+    environment:
+      - GESTALT_PORT=9150
+      - GESTALT_LOG_LEVEL=info
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    ports:
+      - "${GESTALT_PORT:-9150}:9150"
+    volumes:
+      - gestalt-data:/data
+    profiles:
+      - with-gestalt
+    networks:
+      - swal-net
+
+volumes:
+  swal-workspace:
+    driver: local
+  swal-config:
+    driver: local
+  swal-skills:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/skills
+  gestalt-binaries:
+    driver: local
+  gestalt-data:
+    driver: local
+  cortex-data:
+    driver: local
+
+networks:
+  swal-net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
