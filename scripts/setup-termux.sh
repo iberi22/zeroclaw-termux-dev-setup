@@ -1,10 +1,11 @@
 #!/bin/bash
 # ============================================================
-# ZeroClaw SWAL Node — Termux Setup v3.5
+# ZeroClaw SWAL Node — Termux Setup v3.6
 # Interactive installer con diagnóstico y reparación de config
 # Admin privileges para instalación completa de paquetes
 # Incluye logo SWAL con oh-my-logo (colores OrionHealth)
 # Autonomy level: supervised (pide permiso para comandos privileged)
+# Security policy: comandos permitidos (pkg, git, npm, python, etc)
 # Skills: globales + por proyecto (sales, manteniapp, worldexams, orionhealth)
 # ============================================================
 set -euo pipefail
@@ -707,11 +708,9 @@ configure_zeroclaw_autonomy() {
     
     # Verificar si ya existe autonomy_level
     if grep -q 'autonomy_level' "$config_file" 2>/dev/null; then
-        # Modificar existente
         sed -i 's/autonomy_level = ".*"/autonomy_level = "supervised"/' "$config_file"
         success "autonomy_level actualizado a supervised"
     else
-        # Agregar al final o crear sección [agent]
         if grep -q '^\[agent\]' "$config_file" 2>/dev/null; then
             sed -i '/^\[agent\]/a autonomy_level = "supervised"' "$config_file"
         else
@@ -722,6 +721,32 @@ configure_zeroclaw_autonomy() {
     fi
     
     grep 'autonomy_level' "$config_file" 2>/dev/null || true
+}
+
+# ============================================================
+# CONFIGURAR SECURITY POLICY (comandos permitidos)
+# ============================================================
+configure_security_policy() {
+    info "Configurando security policy (comandos permitidos)..."
+    
+    local config_file="$HOME/.zeroclaw/config.toml"
+    
+    # Verificar si ya existe sección [security]
+    if grep -q '^\[security\]' "$config_file" 2>/dev/null; then
+        # Sección existe, agregar allowed_commands si no existe
+        if ! grep -q 'allowed_commands' "$config_file"; then
+            sed -i '/^\[security\]/a allowed_commands = ["pkg", "pkg_install", "pkg_update", "pkg_upgrade", "termux-setup-storage", "git", "curl", "wget", "openssl", "sshd", "ssh-keygen", "node", "npm", "python", "python3", "pip", "pip3"]' "$config_file"
+        fi
+        success "security policy actualizada"
+    else
+        # Crear nueva sección [security]
+        echo -e "\n[security]" >> "$config_file"
+        echo 'allowed_commands = ["pkg", "pkg_install", "pkg_update", "pkg_upgrade", "termux-setup-storage", "git", "curl", "wget", "openssl", "sshd", "ssh-keygen", "node", "npm", "python", "python3", "pip", "pip3"]' >> "$config_file"
+        success "security policy creada"
+    fi
+    
+    info "Comandos permitidos:"
+    grep 'allowed_commands' "$config_file" 2>/dev/null || true
 }
 
 # ============================================================
@@ -764,10 +789,13 @@ main() {
     # 6. Configurar ZeroClaw autonomy level (supervised)
     configure_zeroclaw_autonomy
     
-    # 7. Mostrar logo SWAL con oh-my-logo (colores OrionHealth)
+    # 7. Configurar security policy (comandos permitidos)
+    configure_security_policy
+    
+    # 8. Mostrar logo SWAL con oh-my-logo (colores OrionHealth)
     show_swal_logo
     
-    # 8. Mostrar resultados
+    # 9. Mostrar resultados
     diagnose
     
     echo ""
