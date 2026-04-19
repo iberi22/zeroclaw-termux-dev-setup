@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# ZeroClaw SWAL Node — Termux Setup v2
+# ZeroClaw SWAL Node — Termux Setup v3
 # Interactive installer con diagnóstico y skills modulares
 # ============================================================
 set -euo pipefail
@@ -107,6 +107,26 @@ diagnose() {
         echo -e "  ZeroClaw: ${YELLOW}⚠ no instalado (opcional)${NC}"
     fi
 
+    # Codex
+    ((checks++))
+    if command -v codex &>/dev/null; then
+        echo -n "  Codex CLI: "
+        echo -e "${GREEN}✓$(codex --version 2>/dev/null || echo 'installed')${NC}"
+        ((passed++))
+    else
+        echo -e "  Codex CLI: ${YELLOW}⚠ no instalado${NC}"
+    fi
+
+    # OpenCode
+    ((checks++))
+    if command -v opencode &>/dev/null; then
+        echo -n "  OpenCode CLI: "
+        echo -e "${GREEN}✓$(opencode --version 2>/dev/null || echo 'installed')${NC}"
+        ((passed++))
+    else
+        echo -e "  OpenCode CLI: ${YELLOW}⚠ no instalado${NC}"
+    fi
+
     # Workspace
     ((checks++))
     if [[ -d "$WORKSPACE_DIR" ]]; then
@@ -160,14 +180,62 @@ show_menu() {
     echo "  [7] Java (OpenJDK 17) + Maven"
     echo "  [8] Flutter SDK (~2GB, opcional)"
     echo "  [9] Build tools (cmake, ninja, clang, make)"
+    echo "  [C] Codex CLI — coding agent de OpenAI"
+    echo "  [O] OpenCode CLI — coding agent MiniMax-M2.7"
+    echo ""
     echo "  [A] Instalar TODOS los anteriores"
     echo "  [S] Solo instalar skills (sin paquetes de sistema)"
     echo ""
-    echo -n "  Tu selección: "
+    echo -n "  Tu selección (ej: 1,2,C,O): "
 }
 
 # ============================================================
-# INSTALAR PAQUETES
+# INSTALAR CODEX CLI
+# ============================================================
+install_codex() {
+    if ! command -v npm &>/dev/null; then
+        warn "npm no disponible — no se puede instalar Codex CLI"
+        return
+    fi
+
+    echo -n "  Codex CLI (@openai/codex)... "
+    if npm install -g @openai/codex 2>/dev/null; then
+        echo -e "${GREEN}✓${NC}"
+        success "Codex CLI instalado!"
+        echo "    Usa: codex --help"
+    else
+        echo -e "${YELLOW}⚠ falló${NC}"
+    fi
+}
+
+# ============================================================
+# INSTALAR OPENCODE CLI
+# ============================================================
+install_opencode() {
+    if ! command -v npm &>/dev/null; then
+        warn "npm no disponible — no se puede instalar OpenCode CLI"
+        return
+    fi
+
+    echo -n "  OpenCode CLI... "
+    if npm install -g opencode 2>/dev/null; then
+        echo -e "${GREEN}✓${NC}"
+        success "OpenCode CLI instalado!"
+        echo "    Usa: opencode --help"
+    else
+        echo -n "  OpenCode (@minimax/opencode)... "
+        if npm install -g @minimax/opencode 2>/dev/null; then
+            echo -e "${GREEN}✓${NC}"
+            success "OpenCode CLI (@minimax/opencode) instalado!"
+            echo "    Usa: opencode --help"
+        else
+            echo -e "${YELLOW}⚠ falló${NC}"
+        fi
+    fi
+}
+
+# ============================================================
+# INSTALAR PAQUETES DE SISTEMA
 # ============================================================
 install_packages() {
     local selection="$1"
@@ -186,41 +254,52 @@ install_packages() {
 
     if [[ "$selection" == "A" ]]; then
         # Todos los paquetes
-        pkg_install="$base_pkgs python nodejs npm ruby openjdk-17 dart"
+        pkg_install="$base_pkgs python pip nodejs npm ruby openjdk-17 dart"
     else
         # Selección individual
         local choices=$(echo "$selection" | tr ',' '\n')
 
-        #Siempre base
+        # Siempre base
         pkg_install="$base_pkgs"
 
         echo "$choices" | while read -r choice; do
             case "$choice" in
                 1) pkg_install="$pkg_install python pip" ;;
-                2) pkg_install="$pkg_install nodejs" ;;
+                2) pkg_install="$pkg_install nodejs npm" ;;
                 3) pkg_install="$pkg_install golang" ;;
                 4) pkg_install="$pkg_install rust" ;;
                 5) pkg_install="$pkg_install php composer" ;;
                 6) pkg_install="$pkg_install ruby" ;;
                 7) pkg_install="$pkg_install openjdk-17" ;;
                 8) pkg_install="$pkg_install dart" ;;
-                9) pkg_install="$pkg_install" ;;
+                C|c) install_codex ;;  # Codex via npm
+                O|o) install_opencode ;; # OpenCode via npm
             esac
         done
     fi
 
-    info "Instalando: $(echo $pkg_install | tr ' ' '\n' | sort | uniq | tr '\n' ' ')"
-    echo ""
+    #Instalar paquetes de sistema (sin duplicados)
+    local unique_pkgs=$(echo "$pkg_install" | tr ' ' '\n' | sort -u | tr '\n' ' ')
 
-    # Instalar con apt para manejar dependencias correctamente
-    for pkg in $(echo "$pkg_install" | tr ' ' '\n' | sort -u); do
-        echo -n "  Instalando $pkg... "
-        if pkg install -y "$pkg" 2>/dev/null; then
-            echo -e "${GREEN}✓${NC}"
-        else
-            echo -e "${YELLOW}⚠ falló (继续)${NC}"
-        fi
-    done
+    if [[ -n "$unique_pkgs" ]]; then
+        info "Instalando paquetes de sistema: $unique_pkgs"
+        for pkg in $unique_pkgs; do
+            echo -n "  $pkg... "
+            if pkg install -y "$pkg" 2>/dev/null; then
+                echo -e "${GREEN}✓${NC}"
+            else
+                echo -e "${YELLOW}⚠${NC}"
+            fi
+        done
+    fi
+
+    # Codex y OpenCode via npm (si seleccionados)
+    if echo ",$selection," | grep -q ",C," && ! command -v codex &>/dev/null; then
+        install_codex
+    fi
+    if echo ",$selection," | grep -q ",O," && ! command -v opencode &>/dev/null; then
+        install_opencode
+    fi
 }
 
 # ============================================================
@@ -330,7 +409,7 @@ install_skills() {
         fi
 
         if [[ -d "$dest" ]]; then
-            # Ya existe — solo actualizar
+            # Ya existe — solo actualizar SKILL.md
             cp -f "$skill_path/SKILL.md" "$dest/SKILL.md" 2>/dev/null || true
             echo -e "  ${CYAN}↻${NC} $skill_name (actualizado)"
         else
@@ -350,15 +429,17 @@ install_skills() {
     install_skill "github"
     install_skill "coding-agent"
 
-    # Skills según paquetes
+    # Skills según paquetes seleccionados
     if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",1," ]]; then
-        install_skill "python"; install_skill "jupyter"
+        install_skill "python"
+        install_skill "jupyter"
     fi
     if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",2," ]]; then
-        install_skill "nodejs"; install_skill "typescript"
+        install_skill "nodejs"
+        install_skill "typescript"
     fi
     if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",3," ]]; then
-        install_skill "golang"; install_skill "gcp"
+        install_skill "golang"
     fi
     if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",4," ]]; then
         install_skill "rust"
@@ -376,9 +457,13 @@ install_skills() {
         install_skill "flutter"
     fi
 
-    # Skills de infraestructura — siempre o si A
-    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",9," ]]; then
-        install_skill "cmake"; install_skill "ninja"
+    # Coding agents CLI
+    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",[Cc],\" ]]; then
+        install_skill "codex"
+    fi
+    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",[Oo],\" ]]; then
+        install_skill "opencode-dev-workflow"
+        install_skill "subagent-launcher"
     fi
 
     # Skills IaC/Infrastructure — siempre básicos
@@ -388,7 +473,10 @@ install_skills() {
     install_skill "supabase"
     install_skill "cloudflare-wrangler"
     install_skill "gcp"
+
+    # Skills Swarm
     install_skill "gestalt-swarm"
+    install_skill "skill-launcher"
 
     # Skills de inteligencia — siempre
     install_skill "jules"
@@ -407,7 +495,7 @@ install_skills() {
 
     # Listar skills instalados
     info "Skills en $SKILLS_DIR:"
-    ls -la "$SKILLS_DIR/" 2>/dev/null | grep "^d" | awk '{print "  " $NF}' | grep -v "^\.$" | head -20
+    ls -la "$SKILLS_DIR/" 2>/dev/null | grep "^d" | awk '{print "  " $NF}' | grep -v "^\.$" | head -25
 }
 
 # ============================================================
@@ -431,7 +519,7 @@ verify_workspace() {
     done
 
     if [[ "$all_ok" == "false" ]]; then
-        warn "Algunos archivos críticos faltan. Considera copiar desde swal-skills/templates/"
+        warn "Algunos archivos críticos faltan."
     fi
 }
 
@@ -441,15 +529,13 @@ verify_workspace() {
 setup_permissions() {
     info "Configurando permisos..."
 
-    # Zeroclaw/openclaw
-    for bin in zeroclaw openclaw; do
+    for bin in zeroclaw openclaw codex opencode; do
         if command -v $bin &>/dev/null; then
             chmod +x "$(which $bin)" 2>/dev/null || true
             echo -e "  ${GREEN}✓${NC} $bin"
         fi
     done
 
-    # Scripts en workspace
     if [[ -d "$WORKSPACE_DIR" ]]; then
         find "$WORKSPACE_DIR" -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
         find "$WORKSPACE_DIR" -name "*.py" -exec chmod +x {} \; 2>/dev/null || true
@@ -490,6 +576,9 @@ setup_secrets() {
 # ZeroClaw
 # ZEROCLAW_API_KEY=
 
+# Coding agents
+# CODEX_API_KEY=  # OpenAI key para Codex CLI
+
 # Proveedor default
 # DEFAULT_PROVIDER=groq
 # DEFAULT_MODEL=minimax/MiniMax-M2.7
@@ -511,7 +600,7 @@ EOF
 main() {
     echo ""
     log "$GREEN" "═══════════════════════════════════════════════════════"
-    log "$GREEN" "  ZeroClaw SWAL Node — Termux Setup v2"
+    log "$GREEN" "  ZeroClaw SWAL Node — Termux Setup v3"
     log "$GREEN" "═══════════════════════════════════════════════════════"
 
     # 1. Diagnóstico
@@ -523,7 +612,7 @@ main() {
 
     echo ""
 
-    # 3. Instalar paquetes
+    # 3. Instalar paquetes (sistema + coding agents)
     install_packages "$selection"
 
     # 4. Python tools
@@ -554,10 +643,15 @@ main() {
     success "  SETUP COMPLETADO!"
     log "$GREEN" "═══════════════════════════════════════════════════════"
     echo ""
-    info "Resumen:"
-    echo "  - Paquetes: $(echo "$selection" | tr '[:upper:]' '[:lower:]')"
+    info "Resumen de instalación:"
+    echo "  - Selección: $selection"
     echo "  - Workspace: $WORKSPACE_DIR"
     echo "  - Skills: $SKILLS_DIR"
+    echo ""
+    info "Coding agents instalados:"
+    command -v codex &>/dev/null && echo "  ${GREEN}✓${NC} Codex CLI (@openai/codex)" || true
+    command -v opencode &>/dev/null && echo "  ${GREEN}✓${NC} OpenCode CLI" || true
+    command -v jules &>/dev/null && echo "  ${GREEN}✓${NC} Jules CLI" || true
     echo ""
     info "Próximos pasos:"
     echo "  1. Edita $ENV_FILE con tus API keys"
