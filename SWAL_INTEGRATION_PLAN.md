@@ -1,193 +1,128 @@
-# ZeroClaw SWAL Node — Plan de Integración
+# ZeroClaw SWAL Agent — Plan de Integración
 
-**Fecha:** 2026-04-19  
-**Proyecto:** SWAL Node con ZeroClaw + Gestalt Rust + Cortex  
+**Fecha:** 2026-04-19
 **Repo:** `iberi22/zeroclaw-termux-dev-setup`
+**Visión:** ZeroClaw como AGENTE CONTROLADO por OpenClaw via HTTP API
 
 ---
 
-## Arquitectura Actual del Fork
-
-El fork `iberi22/zeroclaw-termux-dev-setup` (v0.7.1) es una reimplementación completa con workspace de 16 crates:
+## Concepto
 
 ```
-zeroclaw-api           — API traits y tipos core
-zeroclaw-infra         — Infraestructura compartida
-zeroclaw-config        — Sistema de configuración
-zeroclaw-providers     — 20+ providers (OpenAI, Anthropic, Gemini CLI, Ollama, etc.)
-zeroclaw-memory        — SQLite, Qdrant, Knowledge Graph, Embeddings
-zeroclaw-channels      — Telegram, Discord, Nostr, Matrix, Feishu
-zeroclaw-tools         — Tool execution surface
-zeroclaw-runtime       — Runtime adapters
-zeroclaw-gateway       — HTTP webhook server
-zeroclaw-tui           — Terminal UI
-zeroclaw-plugins       — Plugin system
-zeroclaw-hardware      — Periféricos hardware
-zeroclaw-tool-call-parser — Parser de tool calls
+OpenClaw (esta sesión) ──HTTP──> ZeroClaw Gateway (Docker)
+                                      │
+                                      ├── Ejecuta tools (shell, git, file)
+                                      ├── Accede a proyectos (workspace)
+                                      └── Memoria → Cortex
 ```
 
-**Módulos propios agregados:**
-- `src/nodes` — Sistema de nodos distribuidos
-- `src/hands` — Sistema de herramientas avanzado
-- `src/routines` — Tareas programadas
-- `src/skillforge` — Forja de skills
-- `src/marketplace` — Marketplace de skills
-- `src/platform` — Configuración de plataforma
-- `src/trust` — Sistema de confianza/permisos
-- `src/verifiable_intent` — Intenciones verificables
+ZeroClaw corre en Docker. OpenClaw le envía tasks via REST API (gateway port 42617). ZeroClaw las ejecuta con todas las tools habilitadas, accediendo a los proyectos montados.
 
 ---
 
-## Plan de Integración SWAL
+## Arquitectura
 
-### FASE 1: Docker Node para SWAL ✅ (Esta sesión)
-- [ ] `docker-compose.swal.yml` — Docker Compose para SWAL node
-- [ ] `Dockerfile.swal` — Dockerfile optimizado para SWAL con Gestalt
-- [ ] Variables de entorno para Cortex, Gestalt, OpenClaw bridge
-- [ ]Puerto y networking configurables
+### Workspace mounting
 
-### FASE 2: Script de Instalación Termux ✅ (Esta sesión)
-- [ ] `install-swal-node.sh` — Script de instalación para Termux
-- [ ] Soporte para ZeroClaw + Gestalt Swarm CLI
-- [ ] Integración con el existing `termux-dev-nvim-agents`
-- [ ] API keys configurables
-
-### FASE 3: Integración Gestalt Swarm ⚙️
-- [ ] Crear `crates/zeroclaw-gestalt` — Bridge hacia Gestalt Swarm
-- [ ] Exponer `gestalt_swarm` como tool en ZeroClaw
-- [ ] API endpoint en gateway para gestión de swarm
-- [ ] Soporte para `swarm` subcommand en CLI
-
-### FASE 4: Integración Cortex Memory ⚙️
-- [ ] Crear `crates/zeroclaw-cortex` — Backend de memoria Cortex
-- [ ] Implementar `Memory` trait para Cortex HTTP API
-- [ ] Configuración de URL/token de Cortex en config
-- [ ] Sync bidireccional con memoria local de ZeroClaw
-
-### FASE 5: Integración Skills SWAL ⚙️
-- [ ] Asegurar compatibilidad de skills OpenClaw → ZeroClaw
-- [ ] Importar skills de `iberi22/swal-skills`
-- [ ] Skill de Gestalt Swarm (`gestalt-swarm` skill)
-- [ ] Skill de Cortex Memory (`cortex-memory` skill)
-
-### FASE 6: Fix de Tool Calls en Termux 🔧
-- [ ] Diagnosticar problemas de tool calls en Termux
-- [ ] 添加 retry logic y exponential backoff
-- [ ] Mejorar parsing de tool calls del Gemini CLI
-- [ ] Policy de Rate limiting para evitar 429s
-
----
-
-## Comparativa: OpenClaw vs ZeroClaw vs Objetivo SWAL
-
-| Feature | OpenClaw | ZeroClaw (fork) | Objetivo SWAL |
-|---------|----------|-----------------|----------------|
-| Lenguaje | TypeScript/Node | Rust | Rust |
-| RAM | >1GB | <5MB | <10MB |
-| Startup | >500ms | <10ms | <50ms |
-| Skills | SKILL.md | SKILL.md/SKILL.toml | SKILL.md |
-| Memory | Cortex | SQLite/Qdrant | Cortex + SQLite |
-| Swarm | Gestalt Rust | No | Sí (integrado) |
-| Channels | Telegram, etc. | Multi | Todos + custom |
-| Tool calls | Buenos | Buenos | Mejorados |
-| Docker | Nativo | Multi-stage | SWAL-optimized |
-
----
-
-## Tool Calls en Termux — Diagnóstico
-
-**Problemas reportados:**
-1. Gemini CLI tiene políticas de rate limiting estrictas
-2. Configuraciones de políticas interfieren
-3. Muchos tool call failures vs OpenClaw
-
-**Causas probables:**
-- Gemini CLI en Termux usa OAuth con scopes limitados
-- El thin client de Termux tiene problemas de parsing de respuestas largas
-- Falta de retry/timeout configurable
-
-**Soluciones:**
-1. Implementar `gemini_cli` provider con retry logic robusto
-2. Usar `zeroclaw` como proxy local para batching de requests
-3. Configurar `trust.level` y `autonomy` para reducir tool calls innecesarios
-4. Añadir `rate_limit` y `timeout` configurables por provider
-
----
-
-## Docker Setup — SWAL Node
-
-```yaml
-# docker-compose.swal.yml
-services:
-  zeroclaw-swal:
-    build:
-      context: .
-      dockerfile: Dockerfile.swal
-    container_name: swal-zeroclaw-node
-    environment:
-      - API_KEY=${API_KEY}
-      - CORTEX_URL=http://cortex:8003
-      - CORTEX_TOKEN=dev-token
-      - GESTALT_SWARM_PATH=/app/gestalt
-      - ZEROCLAW_GATEWAY_PORT=42617
-      - PROVIDER=openrouter
-      - DEFAULT_MODEL=${DEFAULT_MODEL:-anthropic/claude-sonnet-4-20250514}
-    ports:
-      - "42617:42617"
-    volumes:
-      - swal-workspace:/zeroclaw-data/workspace
-      - swal-config:/zeroclaw-data/.zeroclaw
-      - gestalt-binaries:/app/gestalt
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 1G
+```
+Host: E:\scripts-python\
+  └── zeroclaw/              ← repo zeroclaw-termux-dev-setup
+        docker-compose.swal.yml
+        Dockerfile.swal
+  └── projects/               ← TODOS los proyectos SWAL (montado como volume)
+        gestalt-rust/
+        swal-skills/
+        agents-flows-recipes/
+        termux-dev-nvim-agents/
+        isar_agent_memory/
+        ...más
 ```
 
----
+En Docker: `/zeroclaw-data/workspace` = `E:\scripts-python\` (directorio padre)
 
-## Puerto y Configuración de Red
+### Gateway API
 
-- **ZeroClaw Gateway:** 42617 (configurable)
-- **Gestalt Swarm CLI:** puerto dinámico
-- **Cortex API:** http://localhost:8003
-- **Telegram Bot:** configurable via bot token
-- **Nostr:** configurable
-
----
-
-## Credentials (Cortex + Providers)
-
-```toml
-# ~/.zeroclaw/.zeroclaw/config.swal.toml
-[cortex]
-url = "http://localhost:8003"
-token = "dev-token"
-enabled = true
-
-[gestalt]
-swarm_path = "~/.local/bin/gestalt_swarm"
-enabled = false  # Activar cuando esté integrado
-
-[providers.gemini_cli]
-enabled = true
-model = "gemini-2.5-flash"
-oauth_cache = "~/.gemini-oauth-cache"
-rate_limit_rpm = 30
-
-[providers.openrouter]
-enabled = true
+```
+http://localhost:42617
 ```
 
+Endpoints útiles:
+- `POST /v1/chat` — Enviar mensaje al agente
+- `POST /v1/tools/execute` — Ejecutar tool específica
+- `GET /health` — Health check
+- `GET /status` — Estado del agente
+
 ---
 
-## Flags de Build Recomendados
+## Herramientas Habilitadas
+
+| Tool | Descripción | Estado |
+|------|-------------|--------|
+| shell | Ejecutar comandos bash/powershell | ✅ |
+| git | Git operations | ✅ |
+| file_read | Leer archivos | ✅ |
+| file_write | Escribir archivos | ✅ |
+| file_edit | Editar archivos | ✅ |
+| glob_search | Buscar archivos | ✅ |
+| web_search | Búsqueda web | ✅ |
+| web_fetch | Fetch URLs | ✅ |
+| calculator | Calculadora | ✅ |
+| memory_recall | Cortex recall | ✅ |
+| memory_store | Cortex store | ✅ |
+
+---
+
+## Flujo de Trabajo
+
+1. **Build:** `docker build -f Dockerfile.swal -t swal-zeroclaw .`
+2. **Start:** `docker compose -f docker-compose.swal.yml up -d`
+3. **Yo envío tasks via HTTP** al gateway
+4. **ZeroClaw ejecuta** con tools → accede proyectos
+5. **Resultado vuelve** a mí → reporto
+
+---
+
+## Tool Calls — Fix Termux
+
+El problema de Termux (tool call failures) se resuelve:
+1. Usar ZeroClaw Docker como proxy (no Gemini CLI directo)
+2. Configurar `reliable.rs` retry con exponential backoff
+3. Rate limiting por provider
+4. Verificar `ZEROCLAW_ALLOW_*` flags
+
+---
+
+## Issues Pendientes
+
+- [ ] Test HTTP API del gateway (curl /health, /status)
+- [ ] Verificar mount de workspace con proyectos
+- [ ] Configurar tools allowlist correctamente
+- [ ] Test shell execution desde OpenClaw → ZeroClaw
+- [ ] Integrar Cortex memory (ZeroClaw → Cortex API)
+- [ ] FASE 3: Gestalt Swarm como tool
+
+---
+
+## Quick Start
 
 ```bash
-# Features para SWAL node
-ZEROCLAW_CARGO_FEATURES="channel-lark,whatsapp-web,channel-nostr"
-# Incluir:
-# - gestalt integration (próximamente)
-# - cortex memory backend (próximamente)
+cd E:\scripts-python\zeroclaw
+
+# 1. Copiar y editar env
+cp env.swal.example .env.swal
+# Editar .env.swal → añadir API_KEY
+
+# 2. Build
+docker build -f Dockerfile.swal -t swal-zeroclaw .
+
+# 3. Start (sin cortex si ya corre en host)
+docker compose -f docker-compose.swal.yml up -d
+
+# 4. Verificar
+curl http://localhost:42617/health
+
+# 5. Enviar mensaje al agente
+curl -X POST http://localhost:42617/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Ejecuta git status en gestalt-rust"}'
 ```
