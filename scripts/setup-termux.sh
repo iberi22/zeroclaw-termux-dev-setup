@@ -619,12 +619,42 @@ install_packages() {
 }
 
 # ============================================================
+# CONFIGURAR ZEROCLAW AUTONOMY LEVEL
+# ============================================================
+configure_zeroclaw_autonomy() {
+    info "Configurando ZeroClaw autonomy level..."
+    
+    local config_file="$HOME/.zeroclaw/config.toml"
+    
+    # Crear directorio si no existe
+    mkdir -p "$HOME/.zeroclaw"
+    
+    # Verificar si ya existe autonomy_level
+    if grep -q 'autonomy_level' "$config_file" 2>/dev/null; then
+        # Modificar existente
+        sed -i 's/autonomy_level = ".*"/autonomy_level = "supervised"/' "$config_file"
+        success "autonomy_level actualizado a supervised"
+    else
+        # Agregar al final o crear sección [agent]
+        if grep -q '^\[agent\]' "$config_file" 2>/dev/null; then
+            sed -i '/^\[agent\]/a autonomy_level = "supervised"' "$config_file"
+        else
+            echo -e "\n[agent]" >> "$config_file"
+            echo 'autonomy_level = "supervised"' >> "$config_file"
+        fi
+        success "autonomy_level configurado a supervised"
+    fi
+    
+    grep 'autonomy_level' "$config_file" 2>/dev/null || true
+}
+
+# ============================================================
 # MAIN
 # ============================================================
 main() {
     echo ""
     log "$GREEN" "═══════════════════════════════════════════════════════"
-    log "$GREEN" "  ZeroClaw SWAL Node — Termux Setup v3.4"
+    log "$GREEN" "  ZeroClaw SWAL Node — Termux Setup v3.5"
     log "$GREEN" "═══════════════════════════════════════════════════════"
     echo ""
     
@@ -655,10 +685,13 @@ main() {
     install_skills
     setup_workspace
     
-    # 6. Mostrar logo SWAL con oh-my-logo (colores OrionHealth)
+    # 6. Configurar ZeroClaw autonomy level (supervised)
+    configure_zeroclaw_autonomy
+    
+    # 7. Mostrar logo SWAL con oh-my-logo (colores OrionHealth)
     show_swal_logo
     
-    # 7. Mostrar resultados
+    # 8. Mostrar resultados
     diagnose
     
     echo ""
