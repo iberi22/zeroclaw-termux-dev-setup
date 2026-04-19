@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# ZeroClaw SWAL Node — Termux Setup v3
+# ZeroClaw SWAL Node — Termux Setup v3.1
 # Interactive installer con diagnóstico y skills modulares
 # ============================================================
 set -euo pipefail
@@ -117,6 +117,16 @@ diagnose() {
         echo -e "  Codex CLI: ${YELLOW}⚠ no instalado${NC}"
     fi
 
+    # Claude Code
+    ((checks++))
+    if command -v claude &>/dev/null; then
+        echo -n "  Claude Code: "
+        echo -e "${GREEN}✓$(claude --version 2>/dev/null || echo 'installed')${NC}"
+        ((passed++))
+    else
+        echo -e "  Claude Code: ${YELLOW}⚠ no instalado${NC}"
+    fi
+
     # OpenCode
     ((checks++))
     if command -v opencode &>/dev/null; then
@@ -180,13 +190,16 @@ show_menu() {
     echo "  [7] Java (OpenJDK 17) + Maven"
     echo "  [8] Flutter SDK (~2GB, opcional)"
     echo "  [9] Build tools (cmake, ninja, clang, make)"
-    echo "  [C] Codex CLI — coding agent de OpenAI"
-    echo "  [O] OpenCode CLI — coding agent MiniMax-M2.7"
+    echo ""
+    echo "  [C] Codex CLI — coding agent, OpenAI"
+    echo "  [L] Claude Code CLI — coding agent, Anthropic"
+    echo "  [O] OpenCode CLI — coding agent, MiniMax-M2.7"
+    echo "  [J] Jules CLI — coding agent, Google (GitHub issues)"
     echo ""
     echo "  [A] Instalar TODOS los anteriores"
     echo "  [S] Solo instalar skills (sin paquetes de sistema)"
     echo ""
-    echo -n "  Tu selección (ej: 1,2,C,O): "
+    echo -n "  Tu selección (ej: 1,2,C,L,O): "
 }
 
 # ============================================================
@@ -203,6 +216,25 @@ install_codex() {
         echo -e "${GREEN}✓${NC}"
         success "Codex CLI instalado!"
         echo "    Usa: codex --help"
+    else
+        echo -e "${YELLOW}⚠ falló${NC}"
+    fi
+}
+
+# ============================================================
+# INSTALAR CLAUDE CODE CLI
+# ============================================================
+install_claude_code() {
+    if ! command -v npm &>/dev/null; then
+        warn "npm no disponible — no se puede instalar Claude Code CLI"
+        return
+    fi
+
+    echo -n "  Claude Code (@anthropic/claude-code)... "
+    if npm install -g @anthropic/claude-code 2>/dev/null; then
+        echo -e "${GREEN}✓${NC}"
+        success "Claude Code CLI instalado!"
+        echo "    Usa: claude --help"
     else
         echo -e "${YELLOW}⚠ falló${NC}"
     fi
@@ -227,7 +259,6 @@ install_opencode() {
         if npm install -g @minimax/opencode 2>/dev/null; then
             echo -e "${GREEN}✓${NC}"
             success "OpenCode CLI (@minimax/opencode) instalado!"
-            echo "    Usa: opencode --help"
         else
             echo -e "${YELLOW}⚠ falló${NC}"
         fi
@@ -272,8 +303,9 @@ install_packages() {
                 6) pkg_install="$pkg_install ruby" ;;
                 7) pkg_install="$pkg_install openjdk-17" ;;
                 8) pkg_install="$pkg_install dart" ;;
-                C|c) install_codex ;;  # Codex via npm
-                O|o) install_opencode ;; # OpenCode via npm
+                C|c) install_codex ;;
+                L|l) install_claude_code ;;
+                O|o) install_opencode ;;
             esac
         done
     fi
@@ -293,9 +325,12 @@ install_packages() {
         done
     fi
 
-    # Codex y OpenCode via npm (si seleccionados)
+    # Coding agents via npm (si seleccionados y no instalados)
     if echo ",$selection," | grep -q ",C," && ! command -v codex &>/dev/null; then
         install_codex
+    fi
+    if echo ",$selection," | grep -q ",L," && ! command -v claude &>/dev/null; then
+        install_claude_code
     fi
     if echo ",$selection," | grep -q ",O," && ! command -v opencode &>/dev/null; then
         install_opencode
@@ -457,13 +492,19 @@ install_skills() {
         install_skill "flutter"
     fi
 
-    # Coding agents CLI
-    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",[Cc],\" ]]; then
+    # Coding agents CLI skills
+    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",[Cc]," ]]; then
         install_skill "codex"
     fi
-    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",[Oo],\" ]]; then
+    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",[Ll]," ]]; then
+        install_skill "claude-code"
+    fi
+    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",[Oo]," ]]; then
         install_skill "opencode-dev-workflow"
         install_skill "subagent-launcher"
+    fi
+    if [[ "$selection" == "A" ]] || echo ",$selection," | grep -q ",[Jj]," ]]; then
+        install_skill "jules"
     fi
 
     # Skills IaC/Infrastructure — siempre básicos
@@ -479,7 +520,6 @@ install_skills() {
     install_skill "skill-launcher"
 
     # Skills de inteligencia — siempre
-    install_skill "jules"
     install_skill "browser-automation"
     install_skill "web-research"
     install_skill "brave-search"
@@ -495,7 +535,7 @@ install_skills() {
 
     # Listar skills instalados
     info "Skills en $SKILLS_DIR:"
-    ls -la "$SKILLS_DIR/" 2>/dev/null | grep "^d" | awk '{print "  " $NF}' | grep -v "^\.$" | head -25
+    ls -la "$SKILLS_DIR/" 2>/dev/null | grep "^d" | awk '{print "  " $NF}' | grep -v "^\.$" | head -30
 }
 
 # ============================================================
@@ -529,7 +569,7 @@ verify_workspace() {
 setup_permissions() {
     info "Configurando permisos..."
 
-    for bin in zeroclaw openclaw codex opencode; do
+    for bin in zeroclaw openclaw codex claude opencode; do
         if command -v $bin &>/dev/null; then
             chmod +x "$(which $bin)" 2>/dev/null || true
             echo -e "  ${GREEN}✓${NC} $bin"
@@ -577,7 +617,8 @@ setup_secrets() {
 # ZEROCLAW_API_KEY=
 
 # Coding agents
-# CODEX_API_KEY=  # OpenAI key para Codex CLI
+# ANTHROPIC_API_KEY=   # Para Claude Code CLI
+# OPENAI_API_KEY=       # Para Codex CLI
 
 # Proveedor default
 # DEFAULT_PROVIDER=groq
@@ -600,7 +641,7 @@ EOF
 main() {
     echo ""
     log "$GREEN" "═══════════════════════════════════════════════════════"
-    log "$GREEN" "  ZeroClaw SWAL Node — Termux Setup v3"
+    log "$GREEN" "  ZeroClaw SWAL Node — Termux Setup v3.1"
     log "$GREEN" "═══════════════════════════════════════════════════════"
 
     # 1. Diagnóstico
@@ -650,8 +691,8 @@ main() {
     echo ""
     info "Coding agents instalados:"
     command -v codex &>/dev/null && echo "  ${GREEN}✓${NC} Codex CLI (@openai/codex)" || true
+    command -v claude &>/dev/null && echo "  ${GREEN}✓${NC} Claude Code CLI (@anthropic/claude-code)" || true
     command -v opencode &>/dev/null && echo "  ${GREEN}✓${NC} OpenCode CLI" || true
-    command -v jules &>/dev/null && echo "  ${GREEN}✓${NC} Jules CLI" || true
     echo ""
     info "Próximos pasos:"
     echo "  1. Edita $ENV_FILE con tus API keys"
