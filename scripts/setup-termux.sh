@@ -1,8 +1,9 @@
 #!/bin/bash
 # ============================================================
-# ZeroClaw SWAL Node — Termux Setup v3.3
+# ZeroClaw SWAL Node — Termux Setup v3.4
 # Interactive installer con diagnóstico y reparación de config
 # Admin privileges para instalación completa de paquetes
+# Incluye logo SWAL con oh-my-logo (colores OrionHealth)
 # ============================================================
 set -euo pipefail
 
@@ -23,6 +24,9 @@ ENV_FILE="$OPENCLAW_DIR/secrets.env"
 BASHRC="$HOME/.bashrc"
 ZSHRC="$HOME/.zshrc"
 
+# Colores OrionHealth: Teal → Cyan
+ORION_COLORS="'#004D40', '#009688', '#00BCD4', '#80CBC4'"
+
 # ============================================================
 # REPARAR CONFIGURACIÓN ROMPIDA
 # ============================================================
@@ -42,7 +46,6 @@ fix_broken_config() {
         fi
         
         if grep -q "zeroclaw daemon" "$BASHRC" 2>/dev/null; then
-            # No es necesariamente un error, solo warning
             info "Nota: 'zeroclaw daemon' encontrado en $BASHRC (auto-start)"
         fi
     fi
@@ -82,16 +85,13 @@ fix_broken_config() {
     info "Verificando rc files para comandos rotos..."
     for rc in "$BASHRC" "$ZSHRC" "$HOME/.profile" "$HOME/.bash_profile"; do
         if [[ -f "$rc" ]]; then
-            # Buscar comandos que no existen
             while IFS= read -r line; do
                 if [[ "$line" =~ ^(alias\ |export\ |function\ ) ]]; then
-                    continue  # Skip aliases and exports
+                    continue
                 fi
-                # Extraer comando (primera palabra)
                 local cmd=$(echo "$line" | awk '{print $1}' | tr -d '|;$')
                 if [[ -n "$cmd" ]] && ! command -v "$cmd" &>/dev/null && [[ "$cmd" != "zeroclaw" ]]; then
-                    # Es un comando que no existe
-                    if ! grep -q "#.*$cmd" "$rc"; then  # No está comentado
+                    if ! grep -q "#.*$cmd" "$rc"; then
                         warn "Comando no encontrado en $rc: $cmd"
                     fi
                 fi
@@ -115,19 +115,15 @@ clean_motd() {
     
     local cleaned=0
     
-    # Deshabilitar motd temporal
     touch "$HOME/.hushlogin" 2>/dev/null && ((cleaned++)) || true
     
-    # Limpiar motd de Termux
     local motd_file="/data/data/com.termux/files/usr/etc/motd"
     if [[ -w "$motd_file" ]] 2>/dev/null; then
-        # Remover líneas de advertisement
         sed -i '/termux\.dev\/donate/d' "$motd_file" 2>/dev/null || true
         sed -i '/termux\.dev\/community/d' "$motd_file" 2>/dev/null || true
         ((cleaned++))
     fi
     
-    # Deshabilitar motd dinámico
     if [[ -d "/data/data/com.termux/files/usr/etc/motd.d" ]]; then
         rm -f /data/data/com.termux/files/usr/etc/motd.d/*.sh 2>/dev/null || true
         ((cleaned++))
@@ -184,7 +180,6 @@ check_services() {
 check_permissions() {
     info "Verificando permisos de Termux..."
     
-    # 1. Verificar si es root
     if [[ "$EUID" -eq 0 ]]; then
         ROOT_MODE=true
         info "Ejecutando como ROOT"
@@ -192,11 +187,9 @@ check_permissions() {
         ROOT_MODE=false
     fi
     
-    # 2. Verificar si es Termux
     if [[ -n "$TERMUX_VERSION" ]]; then
         info "Ejecutando en Termux"
         
-        # Solicitar permisos de storage si no están otorgados
         if [[ ! -d "$HOME/storage" ]]; then
             warn "Permiso de storage no detectado"
             info "Solicitando permisos de storage..."
@@ -205,7 +198,6 @@ check_permissions() {
         fi
     fi
     
-    # 3. Verificar acceso a pkg
     info "Verificando acceso a pkg..."
     if pkg update -y &>/dev/null 2>&1; then
         PKG_ACCESS=true
@@ -216,10 +208,9 @@ check_permissions() {
         info "Tratando de reconfigurar..."
         termux-reload-settings 2>/dev/null || true
         sleep 2
-        # Re-verificar
         if pkg update -y &>/dev/null 2>&1; then
             PKG_ACCESS=true
-            success "pkg恢复了 acceso completo"
+            success "pkg恢复 acceso completo"
         fi
     fi
 }
@@ -237,7 +228,6 @@ diagnose() {
     local checks=0
     local passed=0
 
-    # OS
     echo -n "  OS: "
     if [[ -n "$TERMUX_VERSION" ]]; then
         echo -e "${GREEN}✓ Termux${NC}"
@@ -247,13 +237,11 @@ diagnose() {
     fi
     ((checks++))
 
-    # Shell
     echo -n "  Shell: "
     echo -e "${GREEN}✓${NC} $SHELL"
     ((checks++))
     ((passed++))
 
-    # pkg
     echo -n "  pkg: "
     if [[ "$PKG_ACCESS" == true ]]; then
         echo -e "${GREEN}✓ acceso completo${NC}"
@@ -263,7 +251,6 @@ diagnose() {
     fi
     ((checks++))
 
-    # Node.js
     ((checks++))
     if command -v node &>/dev/null; then
         echo -n "  Node.js: "
@@ -273,7 +260,6 @@ diagnose() {
         echo -e "  Node.js: ${RED}✗ no instalado${NC}"
     fi
 
-    # npm
     ((checks++))
     if command -v npm &>/dev/null; then
         echo -n "  npm: "
@@ -283,7 +269,6 @@ diagnose() {
         echo -e "  npm: ${RED}✗ no instalado${NC}"
     fi
 
-    # Python
     ((checks++))
     if command -v python3 &>/dev/null; then
         echo -n "  Python: "
@@ -293,7 +278,6 @@ diagnose() {
         echo -e "  Python: ${RED}✗ no instalado${NC}"
     fi
 
-    # Git
     ((checks++))
     if command -v git &>/dev/null; then
         echo -n "  Git: "
@@ -303,7 +287,6 @@ diagnose() {
         echo -e "  Git: ${RED}✗ no instalado${NC}"
     fi
 
-    # OpenClaw
     ((checks++))
     if command -v openclaw &>/dev/null; then
         echo -n "  OpenClaw: "
@@ -314,7 +297,6 @@ diagnose() {
         echo -e "  OpenClaw: ${YELLOW}⚠ no instalado${NC}"
     fi
 
-    # ZeroClaw
     ((checks++))
     if command -v zeroclaw &>/dev/null; then
         echo -n "  ZeroClaw: "
@@ -325,7 +307,6 @@ diagnose() {
         echo -e "  ZeroClaw: ${YELLOW}⚠ no instalado${NC}"
     fi
 
-    # uvx
     ((checks++))
     if command -v uvx &>/dev/null; then
         echo -n "  uvx: "
@@ -335,7 +316,6 @@ diagnose() {
         echo -e "  uvx: ${YELLOW}⚠ no instalado${NC}"
     fi
 
-    # Workspace
     ((checks++))
     if [[ -d "$WORKSPACE_DIR" ]]; then
         echo -n "  Workspace: "
@@ -346,7 +326,6 @@ diagnose() {
         echo -e "  Workspace: ${RED}✗ no existe${NC}"
     fi
 
-    # Configs rotas
     echo ""
     log "$CYAN" "  ─── Configuraciones ───"
     
@@ -375,7 +354,6 @@ diagnose() {
 install_base_tools() {
     info "Instalando herramientas base con permisos..."
     
-    # Asegurar pkg actualizado
     info "Actualizando repositorios..."
     pkg update -y 2>/dev/null || {
         warn "pkg update falló, intentando con termux-reload..."
@@ -383,7 +361,6 @@ install_base_tools() {
         pkg update -y 2>/dev/null || warn "No se pudo actualizar pkg"
     }
     
-    # Paquetes esenciales para SWAL
     local base_tools=(
         git curl wget openssl openssh
         vim nano htop termux-api
@@ -406,7 +383,6 @@ install_base_tools() {
         fi
     done
     
-    # Instalar uvx para MCP
     info "Instalando uvx..."
     if command -v uvx &>/dev/null; then
         success "uvx ya está instalado"
@@ -436,10 +412,8 @@ configure_api_keys() {
     log "$CYAN" "═══════════════════════════════════════════════════════"
     echo ""
     
-    # Crear directorio si no existe
     mkdir -p "$OPENCLAW_DIR"
     
-    # GROQ_API_KEY
     echo -n "  GROQ_API_KEY"
     if [[ -n "${GROQ_API_KEY:-}" ]]; then
         echo -e " ${GREEN}✓ ya configurada${NC}"
@@ -455,7 +429,6 @@ configure_api_keys() {
         fi
     fi
     
-    # MINIMAX_API_KEY
     echo -n "  MINIMAX_API_KEY"
     if grep -q "MINIMAX_API_KEY" "$ENV_FILE" 2>/dev/null; then
         echo -e " ${GREEN}✓ ya configurada${NC}"
@@ -480,7 +453,6 @@ install_skills() {
     
     mkdir -p "$SKILLS_DIR"
     
-    # Skills principales
     local skills=(
         "cortex-memory"
         "sales-agent"
@@ -499,7 +471,7 @@ description: "SWAL Node skill - $skill"
 
 # $skill
 
-Skill instalado por setup-termux.sh v3.3
+Skill instalado por setup-termux.sh v3.4
 EOF
         fi
         echo -e "${GREEN}✓${NC}"
@@ -533,6 +505,52 @@ EOF
     fi
     
     success "Workspace configurado en $WORKSPACE_DIR"
+}
+
+# ============================================================
+# MOSTRAR LOGO SWAL (oh-my-logo con colores OrionHealth)
+# ============================================================
+show_swal_logo() {
+    echo ""
+    log "$CYAN" "═══════════════════════════════════════════════════════"
+    log "$CYAN" "  LOGO SWAL — Colores OrionHealth"
+    log "$CYAN" "═══════════════════════════════════════════════════════"
+    echo ""
+    
+    # Verificar si node/npm está disponible
+    if ! command -v node &>/dev/null || ! command -v npm &>/dev/null; then
+        warn "Node.js no está instalado. Saltando logo..."
+        return
+    fi
+    
+    # Verificar npx
+    if ! command -v npx &>/dev/null; then
+        warn "npx no disponible. Saltando logo..."
+        return
+    fi
+    
+    info "Generando logo SWAL con oh-my-logo..."
+    echo ""
+    
+    # Ejecutar oh-my-logo con colores OrionHealth (Teal → Cyan)
+    # Colores: #004D40 (dark teal) → #009688 (teal) → #00BCD4 (cyan) → #80CBC4 (light teal)
+    if npx --yes oh-my-logo "SWAL" --palette-colors "$ORION_COLORS" --filled --letter-spacing 2 2>/dev/null; then
+        success "Logo SWAL mostrado!"
+    else
+        # Fallback: ASCII art manual con colores ANSI
+        echo -e "\033[1;36m╔═══════════════════════════════════════════════════════════╗\033[0m"
+        echo -e "\033[1;36m║\033[0m\033[1;32m ██████╗ ██████╗ ███████╗███╗   ██╗ █████╗ ██╗       \033[1;36m║\033[0m"
+        echo -e "\033[1;36m║\033[0m\033[1;32m ██╔══██╗██╔══██╗██╔════╝████╗  ██║██╔══██╗██║       \033[1;36m║\033[0m"
+        echo -e "\033[1;36m║\033[0m\033[1;32m ██████╔╝██████╔╝█████╗  ██╔██╗ ██║███████║██║       \033[1;36m║\033[0m"
+        echo -e "\033[1;36m║\033[0m\033[1;32m ██╔══██╗██╔══██╗██╔══╝  ██║╚██╗██║██╔══██║██║       \033[1;36m║\033[0m"
+        echo -e "\033[1;36m║\033[0m\033[1;32m ██████╔╝██║  ██║███████╗██║ ╚████║██║  ██║███████╗\033[1;36m║\033[0m"
+        echo -e "\033[1;36m║\033[0m\033[1;32m ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝\033[1;36m║\033[0m"
+        echo -e "\033[1;36m╚═══════════════════════════════════════════════════════════╝\033[0m"
+        echo -e "\033[1;32m              🦉  S W A L   N O D E  🦉\033[0m"
+        echo -e "\033[1;36m            Colores: OrionHealth (Teal/Cyan)\033[0m"
+    fi
+    
+    echo ""
 }
 
 # ============================================================
@@ -606,7 +624,7 @@ install_packages() {
 main() {
     echo ""
     log "$GREEN" "═══════════════════════════════════════════════════════"
-    log "$GREEN" "  ZeroClaw SWAL Node — Termux Setup v3.3"
+    log "$GREEN" "  ZeroClaw SWAL Node — Termux Setup v3.4"
     log "$GREEN" "═══════════════════════════════════════════════════════"
     echo ""
     
@@ -637,7 +655,10 @@ main() {
     install_skills
     setup_workspace
     
-    # 6. Mostrar resultados
+    # 6. Mostrar logo SWAL con oh-my-logo (colores OrionHealth)
+    show_swal_logo
+    
+    # 7. Mostrar resultados
     diagnose
     
     echo ""
