@@ -1,10 +1,10 @@
 # =============================================================================
 # ZeroClaw SWAL Agent — Docker Compose
 # =============================================================================
-# ZeroClaw como AGENTE-controlado por esta sesión de OpenClaw
+# ZeroClaw como AGENTE-controlado via HTTP API
 # - Gateway HTTP API en puerto 42617
-# - Workspace montado en proyectos SWAL
-# - Habilitar TODAS las tools
+# - Workspace de OpenClaw migrado + proyectos SWAL
+# - Todas las tools habilitadas
 # =============================================================================
 
 services:
@@ -12,9 +12,7 @@ services:
   # ZeroClaw — Agente SWAL
   # --------------------------------------------------------------------------
   zeroclaw-swal:
-    build:
-      context: .
-      dockerfile: Dockerfile.swal
+    image: swal-zeroclaw:latest
     container_name: swal-zeroclaw-agent
     restart: unless-stopped
     env_file:
@@ -29,13 +27,11 @@ services:
       - ZEROCLAW_WORKSPACE=/zeroclaw-data/workspace
       - HOME=/zeroclaw-data
 
-      # ── Tools — HABILITAR TODAS ────────────────────────────────────────────
-      # Permitir ejecución de comandos shell
+      # ── Tools — TODAS HABILITADAS ─────────────────────────────────────────
       - ZEROCLAW_ALLOW_SHELL=true
-      # Permitir git operations
       - ZEROCLAW_ALLOW_GIT=true
-      # Permitir acceso a archivos
       - ZEROCLAW_ALLOW_FILE_WRITE=true
+      - ZEROCLAW_ALLOW_FILE_DELETE=true
 
       # ── SWAL Cortex ────────────────────────────────────────────────────────
       - CORTEX_URL=${CORTEX_URL:-http://host.docker.internal:8003}
@@ -47,16 +43,23 @@ services:
       - RUST_BACKTRACE=1
 
     volumes:
-      # Workspace = proyectos SWAL completos
-      - swal-projects:/zeroclaw-data/workspace
+      # ── Workspace de ZeroClaw (migrado de OpenClaw) ──────────────────────
+      # Aquí vive la memoria migrada, skills, config
+      - swal-zeroclaw-data:/zeroclaw-data
 
-      # Config persistente
-      - swal-config:/zeroclaw-data/.zeroclaw
+      # ── Workspace original de OpenClaw (LECTURA) ──────────────────────────
+      # Acceso de solo lectura al workspace actual de OpenClaw
+      # para que ZeroClaw pueda leer AGENTS.md, SOUL.md, MEMORY.md, etc.
+      - ${OPENCLAW_WORKSPACE:-C:/Users/belal/.openclaw/workspace}:/openclaw-workspace:ro
+
+      # ── Proyectos SWAL (ESCRITURA) ────────────────────────────────────────
+      # Proyectos en los que ZeroClaw puede trabajar
+      - ${SWAL_PROJECTS_DIR:-C:/Users/belal/Projects}:/swal-projects:rw
 
     ports:
-      - "42617:42617"
+      - "${ZEROCLAW_GATEWAY_PORT:-42617}:42617"
 
-    # Sin límites restrictivos — agente necesita recursos
+    # Recursos — agente necesita memoria
     deploy:
       resources:
         limits:
@@ -77,7 +80,7 @@ services:
       - swal-net
 
   # --------------------------------------------------------------------------
-  # Cortex Memory Server (si no está corriendo en host)
+  # Cortex Memory Server (solo si no corre en host)
   # --------------------------------------------------------------------------
   cortex:
     image: ${CORTEX_IMAGE:-ghcr.io/iberi22/cortex:latest}
@@ -100,17 +103,8 @@ services:
       - with-cortex
 
 volumes:
-  swal-projects:
+  swal-zeroclaw-data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      # Monte directo a proyectos — así el agente ve todos los proyectos
-      device: ${PWD}/../
-
-  swal-config:
-    driver: local
-
   cortex-data:
     driver: local
 
