@@ -5,6 +5,7 @@
 # Admin privileges para instalación completa de paquetes
 # Incluye logo SWAL con oh-my-logo (colores OrionHealth)
 # Autonomy level: supervised (pide permiso para comandos privileged)
+# Skills: globales + por proyecto (sales, manteniapp, worldexams, orionhealth)
 # ============================================================
 set -euo pipefail
 
@@ -447,18 +448,20 @@ configure_api_keys() {
 }
 
 # ============================================================
-# INSTALAR SKILLS (desde GitHub)
+# INSTALAR SKILLS (globales y por proyecto)
 # ============================================================
 install_skills() {
-    info "Instalando SWAL Skills desde GitHub..."
-    
-    mkdir -p "$SKILLS_DIR"
+    info "Instalando SWAL Skills (globales + por proyecto)..."
     
     # URL del repo de skills SWAL
     local swal_skills_repo="https://github.com/iberi22/swal-skills.git"
     local temp_skill_dir="/data/tmp/swal-skills-temp"
+    local global_skills_dir="$HOME/.zeroclaw/skills"
     
-    # Clonar repo temporal si no existe
+    # Crear directorio global de skills
+    mkdir -p "$global_skills_dir"
+    
+    # Clonar repo temporal
     if [[ ! -d "$temp_skill_dir" ]]; then
         echo -n "  Clonando swal-skills repo... "
         if git clone --depth 1 "$swal_skills_repo" "$temp_skill_dir" 2>/dev/null; then
@@ -469,55 +472,88 @@ install_skills() {
         fi
     fi
     
-    # Skills a instalar
-    local skills=(
+    # Skills globales (disponibles para todos los proyectos)
+    local global_skills=(
         "cortex-memory"
-        "sales-agent"
         "minimax-tools"
         "gestalt-swarm"
     )
     
-    for skill in "${skills[@]}"; do
+    info "Instalando skills globales..."
+    for skill in "${global_skills[@]}"; do
         echo -n "  $skill... "
-        mkdir -p "$SKILLS_DIR/$skill"
+        mkdir -p "$global_skills_dir/$skill"
         
-        # Si existe en el repo clonado, copiarlo
         if [[ -d "$temp_skill_dir/skills/$skill" ]]; then
-            cp -r "$temp_skill_dir/skills/$skill/"* "$SKILLS_DIR/$skill/" 2>/dev/null
-            echo -e "${GREEN}✓ (from repo)${NC}"
+            cp -r "$temp_skill_dir/skills/$skill/"* "$global_skills_dir/$skill/" 2>/dev/null
+            echo -e "${GREEN}✓${NC}"
         else
-            # Crear SKILL.md básico como fallback
-            if [[ ! -f "$SKILLS_DIR/$skill/SKILL.md" ]]; then
-                cat > "$SKILLS_DIR/$skill/SKILL.md" << EOF
+            # Crear básico como fallback
+            if [[ ! -f "$global_skills_dir/$skill/SKILL.md" ]]; then
+                cat > "$global_skills_dir/$skill/SKILL.md" << EOF
 ---
 name: $skill
-description: "SWAL Node skill - $skill"
-version: 1.0.0
+description: "SWAL global skill - $skill"
+type: global
 ---
 
 # $skill
 
-Skill instalado por setup-termux.sh v3.5
-
-## Descripción
-Skill para SWAL Node en Termux.
-
-## Uso
-Este skill proporciona contexto y herramientas para el agente ZeroClaw.
+Skill global instalado por setup-termux.sh v3.5
 EOF
             fi
-            echo -e "${YELLOW}⚠ (local)${NC}"
+            echo -e "${YELLOW}⚠${NC}"
         fi
+    done
+    
+    # Proyectos y sus skills específicos
+    local projects=(
+        "sales:sales-agent,cortex-memory"
+        "manteniapp:sales-agent,minimax-tools,cortex-memory"
+        "worldexams:cortex-memory,minimax-tools"
+        "orionhealth:cortex-memory,minimax-tools"
+    )
+    
+    info "Instalando skills por proyecto..."
+    for project_info in "${projects[@]}"; do
+        local project_name="${project_info%%:*}"
+        local project_skills="${project_info#*:}"
+        local project_skills_dir="$HOME/.zeroclaw/workspace/projects/$project_name/skills"
+        
+        mkdir -p "$project_skills_dir"
+        
+        echo -n "  [$project_name] "
+        
+        local first=true
+        for skill in $(echo "$project_skills" | tr ',' ' '); do
+            if [[ -d "$temp_skill_dir/skills/$skill" ]]; then
+                mkdir -p "$project_skills_dir/$skill"
+                cp -r "$temp_skill_dir/skills/$skill/"* "$project_skills_dir/$skill/" 2>/dev/null
+            fi
+            [[ "$first" == true ]] && echo -n "$skill" && first=false || echo -n ", $skill"
+        done
+        
+        echo -e " ${GREEN}✓${NC}"
     done
     
     # Limpiar repo temporal
     [[ -d "$temp_skill_dir" ]] && rm -rf "$temp_skill_dir"
     
-    success "Skills instalados en $SKILLS_DIR"
+    success "Skills instalados"
     
-    # Mostrar skills instalados
-    local count=$(find "$SKILLS_DIR" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
-    info "Total: $count skills"
+    # Mostrar resumen
+    echo ""
+    log "$CYAN" "  Skills globales:"
+    ls -d "$global_skills_dir"/*/ 2>/dev/null | xargs -n1 basename | sed 's/^/    - /'
+    
+    echo ""
+    log "$CYAN" "  Skills por proyecto:"
+    for proj in sales manteniapp worldexams orionhealth; do
+        if [[ -d "$HOME/.zeroclaw/workspace/projects/$proj/skills" ]]; then
+            local count=$(ls -d "$HOME/.zeroclaw/workspace/projects/$proj/skills"/*/ 2>/dev/null | wc -l)
+            echo "    - $proj: $count skills"
+        fi
+    done
 }
 
 # ============================================================
