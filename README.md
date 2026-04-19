@@ -1,12 +1,12 @@
-<p align="center">
+﻿<p align="center">
   <img src="https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/docs/assets/zeroclaw-banner.png" alt="ZeroClaw" width="600" />
 </p>
 
-<h1 align="center">🦀 ZeroClaw — Personal AI Assistant</h1>
+<h1 align="center">­ƒªÇ ZeroClaw ÔÇö Personal AI Assistant</h1>
 
 <p align="center">
   <strong>Zero overhead. Zero compromise. 100% Rust. 100% Agnostic.</strong><br>
-  ⚡️ <strong>Runs on $10 hardware with <5MB RAM: That's 99% less memory than OpenClaw and 98% cheaper than a Mac mini!</strong>
+  ÔÜí´©Å <strong>Runs on $10 hardware with <5MB RAM: That's 99% less memory than OpenClaw and 98% cheaper than a Mac mini!</strong>
 </p>
 
 <p align="center">
@@ -25,51 +25,51 @@ Built by students and members of the Harvard, MIT, and Sundai.Club communities.
 </p>
 
 <p align="center">
-  🌐 <strong>Languages:</strong>
-  <a href="README.md">🇺🇸 English</a> ·
-  <a href="docs/i18n/zh-CN/README.md">🇨🇳 简体中文</a> ·
-  <a href="docs/i18n/ja/README.md">🇯🇵 日本語</a> ·
-  <a href="docs/i18n/ko/README.md">🇰🇷 한국어</a> ·
-  <a href="docs/i18n/vi/README.md">🇻🇳 Tiếng Việt</a> ·
-  <a href="docs/i18n/tl/README.md">🇵🇭 Tagalog</a> ·
-  <a href="docs/i18n/es/README.md">🇪🇸 Español</a> ·
-  <a href="docs/i18n/pt/README.md">🇧🇷 Português</a> ·
-  <a href="docs/i18n/it/README.md">🇮🇹 Italiano</a> ·
-  <a href="docs/i18n/de/README.md">🇩🇪 Deutsch</a> ·
-  <a href="docs/i18n/fr/README.md">🇫🇷 Français</a> ·
-  <a href="docs/i18n/ar/README.md">🇸🇦 العربية</a> ·
-  <a href="docs/i18n/hi/README.md">🇮🇳 हिन्दी</a> ·
-  <a href="docs/i18n/ru/README.md">🇷🇺 Русский</a> ·
-  <a href="docs/i18n/bn/README.md">🇧🇩 বাংলা</a> ·
-  <a href="docs/i18n/he/README.md">🇮🇱 עברית</a> ·
-  <a href="docs/i18n/pl/README.md">🇵🇱 Polski</a> ·
-  <a href="docs/i18n/cs/README.md">🇨🇿 Čeština</a> ·
-  <a href="docs/i18n/nl/README.md">🇳🇱 Nederlands</a> ·
-  <a href="docs/i18n/tr/README.md">🇹🇷 Türkçe</a> ·
-  <a href="docs/i18n/uk/README.md">🇺🇦 Українська</a> ·
-  <a href="docs/i18n/id/README.md">🇮🇩 Bahasa Indonesia</a> ·
-  <a href="docs/i18n/th/README.md">🇹🇭 ไทย</a> ·
-  <a href="docs/i18n/ur/README.md">🇵🇰 اردو</a> ·
-  <a href="docs/i18n/ro/README.md">🇷🇴 Română</a> ·
-  <a href="docs/i18n/sv/README.md">🇸🇪 Svenska</a> ·
-  <a href="docs/i18n/el/README.md">🇬🇷 Ελληνικά</a> ·
-  <a href="docs/i18n/hu/README.md">🇭🇺 Magyar</a> ·
-  <a href="docs/i18n/fi/README.md">🇫🇮 Suomi</a> ·
-  <a href="docs/i18n/da/README.md">🇩🇰 Dansk</a> ·
-  <a href="docs/i18n/nb/README.md">🇳🇴 Norsk</a>
+  ­ƒîÉ <strong>Languages:</strong>
+  <a href="README.md">­ƒç║­ƒç© English</a> ┬À
+  <a href="docs/i18n/zh-CN/README.md">­ƒç¿­ƒç│ þ«Çõ¢ôõ©¡µûç</a> ┬À
+  <a href="docs/i18n/ja/README.md">­ƒç»­ƒçÁ µùÑµ£¼Þ¬×</a> ┬À
+  <a href="docs/i18n/ko/README.md">­ƒç░­ƒçÀ Ýò£ÛÁ¡ýû┤</a> ┬À
+  <a href="docs/i18n/vi/README.md">­ƒç╗­ƒç│ Tiß║┐ng Viß╗çt</a> ┬À
+  <a href="docs/i18n/tl/README.md">­ƒçÁ­ƒç¡ Tagalog</a> ┬À
+  <a href="docs/i18n/es/README.md">­ƒç¬­ƒç© Espa├▒ol</a> ┬À
+  <a href="docs/i18n/pt/README.md">­ƒçº­ƒçÀ Portugu├¬s</a> ┬À
+  <a href="docs/i18n/it/README.md">­ƒç«­ƒç╣ Italiano</a> ┬À
+  <a href="docs/i18n/de/README.md">­ƒç®­ƒç¬ Deutsch</a> ┬À
+  <a href="docs/i18n/fr/README.md">­ƒç½­ƒçÀ Fran├ºais</a> ┬À
+  <a href="docs/i18n/ar/README.md">­ƒç©­ƒçª Ïº┘äÏ╣Ï▒Ï¿┘èÏ®</a> ┬À
+  <a href="docs/i18n/hi/README.md">­ƒç«­ƒç│ Óñ╣Óñ┐Óñ¿ÓÑìÓñªÓÑÇ</a> ┬À
+  <a href="docs/i18n/ru/README.md">­ƒçÀ­ƒç║ ðáÐâÐüÐüð║ð©ð╣</a> ┬À
+  <a href="docs/i18n/bn/README.md">­ƒçº­ƒç® Óª¼Óª¥ÓªéÓª▓Óª¥</a> ┬À
+  <a href="docs/i18n/he/README.md">­ƒç«­ƒç▒ ÎóÎæÎ¿ÎÖÎ¬</a> ┬À
+  <a href="docs/i18n/pl/README.md">­ƒçÁ­ƒç▒ Polski</a> ┬À
+  <a href="docs/i18n/cs/README.md">­ƒç¿­ƒç┐ ─îe┼ítina</a> ┬À
+  <a href="docs/i18n/nl/README.md">­ƒç│­ƒç▒ Nederlands</a> ┬À
+  <a href="docs/i18n/tr/README.md">­ƒç╣­ƒçÀ T├╝rk├ºe</a> ┬À
+  <a href="docs/i18n/uk/README.md">­ƒç║­ƒçª ðúð║ÐÇð░Ðùð¢ÐüÐîð║ð░</a> ┬À
+  <a href="docs/i18n/id/README.md">­ƒç«­ƒç® Bahasa Indonesia</a> ┬À
+  <a href="docs/i18n/th/README.md">­ƒç╣­ƒç¡ Ó╣äÓ©ùÓ©ó</a> ┬À
+  <a href="docs/i18n/ur/README.md">­ƒçÁ­ƒç░ ÏºÏ▒Ï»┘ê</a> ┬À
+  <a href="docs/i18n/ro/README.md">­ƒçÀ­ƒç┤ Rom├ón─â</a> ┬À
+  <a href="docs/i18n/sv/README.md">­ƒç©­ƒç¬ Svenska</a> ┬À
+  <a href="docs/i18n/el/README.md">­ƒç¼­ƒçÀ ╬ò╬╗╬╗╬À╬¢╬╣╬║╬¼</a> ┬À
+  <a href="docs/i18n/hu/README.md">­ƒç¡­ƒç║ Magyar</a> ┬À
+  <a href="docs/i18n/fi/README.md">­ƒç½­ƒç« Suomi</a> ┬À
+  <a href="docs/i18n/da/README.md">­ƒç®­ƒç░ Dansk</a> ┬À
+  <a href="docs/i18n/nb/README.md">­ƒç│­ƒç┤ Norsk</a>
 </p>
 
-ZeroClaw is a personal AI assistant you run on your own devices. It answers you on the channels you already use (WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Matrix, IRC, Email, Bluesky, Nostr, Mattermost, Nextcloud Talk, DingTalk, Lark, QQ, Reddit, LinkedIn, Twitter, MQTT, WeChat Work, and more). It has a web dashboard for real-time control and can connect to hardware peripherals (ESP32, STM32, Arduino, Raspberry Pi). The Gateway is just the control plane — the product is the assistant.
+ZeroClaw is a personal AI assistant you run on your own devices. It answers you on the channels you already use (WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Matrix, IRC, Email, Bluesky, Nostr, Mattermost, Nextcloud Talk, DingTalk, Lark, QQ, Reddit, LinkedIn, Twitter, MQTT, WeChat Work, and more). It has a web dashboard for real-time control and can connect to hardware peripherals (ESP32, STM32, Arduino, Raspberry Pi). The Gateway is just the control plane ÔÇö the product is the assistant.
 
 If you want a personal, single-user assistant that feels local, fast, and always-on, this is it.
 
 <p align="center">
-  <a href="https://zeroclawlabs.ai">Website</a> ·
-  <a href="docs/README.md">Docs</a> ·
-  <a href="docs/architecture.md">Architecture</a> ·
-  <a href="#quick-start">Getting Started</a> ·
-  <a href="#migrating-from-openclaw">Migrating from OpenClaw</a> ·
-  <a href="docs/ops/troubleshooting.md">Troubleshoot</a> ·
+  <a href="https://zeroclawlabs.ai">Website</a> ┬À
+  <a href="docs/README.md">Docs</a> ┬À
+  <a href="docs/architecture.md">Architecture</a> ┬À
+  <a href="#quick-start">Getting Started</a> ┬À
+  <a href="#migrating-from-openclaw">Migrating from OpenClaw</a> ┬À
+  <a href="docs/ops/troubleshooting.md">Troubleshoot</a> ┬À
   <a href="https://discord.com/invite/wDshRVqRjx">Discord</a>
 </p>
 
@@ -190,7 +190,7 @@ Default behavior on all channels:
 <!-- BEGIN:WHATS_NEW -->
 <!-- END:WHATS_NEW -->
 
-### 📢 Announcements
+### ­ƒôó Announcements
 
 Use this board for important notices (breaking changes, security advisories, maintenance windows, and release blockers).
 
@@ -202,20 +202,20 @@ Use this board for important notices (breaking changes, security advisories, mai
 
 ## Highlights
 
-- **Lean Runtime by Default** — common CLI and status workflows run in a few-megabyte memory envelope on release builds.
-- **Cost-Efficient Deployment** — designed for $10 boards and small cloud instances, no heavyweight runtime dependencies.
-- **Fast Cold Starts** — single-binary Rust runtime keeps command and daemon startup near-instant.
-- **Portable Architecture** — one binary across ARM, x86, and RISC-V with swappable providers/channels/tools.
-- **Local-first Gateway** — single control plane for sessions, channels, tools, cron, SOPs, and events.
-- **Multi-channel inbox** — WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Matrix, IRC, Email, Bluesky, Nostr, Mattermost, Nextcloud Talk, DingTalk, Lark, QQ, Reddit, LinkedIn, Twitter, MQTT, WeChat Work, WebSocket, and more.
-- **Multi-agent orchestration (Hands)** — autonomous agent swarms that run on schedule and grow smarter over time.
-- **Standard Operating Procedures (SOPs)** — event-driven workflow automation with MQTT, webhook, cron, and peripheral triggers.
-- **Web Dashboard** — React 19 + Vite web UI with real-time chat, memory browser, config editor, cron manager, and tool inspector.
-- **Hardware peripherals** — ESP32, STM32 Nucleo, Arduino, Raspberry Pi GPIO via the `Peripheral` trait.
-- **First-class tools** — shell, file I/O, browser, git, web fetch/search, MCP, Jira, Notion, Google Workspace, and 70+ more.
-- **Lifecycle hooks** — intercept and modify LLM calls, tool executions, and messages at every stage.
-- **Skills platform** — bundled, community, and workspace skills with security auditing.
-- **Tunnel support** — Cloudflare, Tailscale, ngrok, OpenVPN, and custom tunnels for remote access.
+- **Lean Runtime by Default** ÔÇö common CLI and status workflows run in a few-megabyte memory envelope on release builds.
+- **Cost-Efficient Deployment** ÔÇö designed for $10 boards and small cloud instances, no heavyweight runtime dependencies.
+- **Fast Cold Starts** ÔÇö single-binary Rust runtime keeps command and daemon startup near-instant.
+- **Portable Architecture** ÔÇö one binary across ARM, x86, and RISC-V with swappable providers/channels/tools.
+- **Local-first Gateway** ÔÇö single control plane for sessions, channels, tools, cron, SOPs, and events.
+- **Multi-channel inbox** ÔÇö WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Matrix, IRC, Email, Bluesky, Nostr, Mattermost, Nextcloud Talk, DingTalk, Lark, QQ, Reddit, LinkedIn, Twitter, MQTT, WeChat Work, WebSocket, and more.
+- **Multi-agent orchestration (Hands)** ÔÇö autonomous agent swarms that run on schedule and grow smarter over time.
+- **Standard Operating Procedures (SOPs)** ÔÇö event-driven workflow automation with MQTT, webhook, cron, and peripheral triggers.
+- **Web Dashboard** ÔÇö React 19 + Vite web UI with real-time chat, memory browser, config editor, cron manager, and tool inspector.
+- **Hardware peripherals** ÔÇö ESP32, STM32 Nucleo, Arduino, Raspberry Pi GPIO via the `Peripheral` trait.
+- **First-class tools** ÔÇö shell, file I/O, browser, git, web fetch/search, MCP, Jira, Notion, Google Workspace, and 70+ more.
+- **Lifecycle hooks** ÔÇö intercept and modify LLM calls, tool executions, and messages at every stage.
+- **Skills platform** ÔÇö bundled, community, and workspace skills with security auditing.
+- **Tunnel support** ÔÇö Cloudflare, Tailscale, ngrok, OpenVPN, and custom tunnels for remote access.
 
 ### Why teams pick ZeroClaw
 
@@ -228,7 +228,7 @@ Use this board for important notices (breaking changes, security advisories, mai
 
 Local machine quick benchmark (macOS arm64, Feb 2026) normalized for 0.8GHz edge hardware.
 
-|                           | OpenClaw      | NanoBot        | PicoClaw        | ZeroClaw 🦀          |
+|                           | OpenClaw      | NanoBot        | PicoClaw        | ZeroClaw ­ƒªÇ          |
 | ------------------------- | ------------- | -------------- | --------------- | -------------------- |
 | **Language**              | TypeScript    | Python         | Go              | **Rust**             |
 | **RAM**                   | > 1GB         | > 100MB        | < 10MB          | **< 5MB**            |
@@ -272,17 +272,17 @@ Feature-gated: Matrix (`channel-matrix`), Lark (`channel-lark`), Nostr (`channel
 
 React 19 + Vite 6 + Tailwind CSS 4 web dashboard served directly from the Gateway:
 
-- **Dashboard** — system overview, health status, uptime, cost tracking
-- **Agent Chat** — interactive chat with the agent
-- **Memory** — browse and manage memory entries
-- **Config** — view and edit configuration
-- **Cron** — manage scheduled tasks
-- **Tools** — browse available tools
-- **Logs** — view agent activity logs
-- **Cost** — token usage and cost tracking
-- **Doctor** — system health diagnostics
-- **Integrations** — integration status and setup
-- **Pairing** — device pairing management
+- **Dashboard** ÔÇö system overview, health status, uptime, cost tracking
+- **Agent Chat** ÔÇö interactive chat with the agent
+- **Memory** ÔÇö browse and manage memory entries
+- **Config** ÔÇö view and edit configuration
+- **Cron** ÔÇö manage scheduled tasks
+- **Tools** ÔÇö browse available tools
+- **Logs** ÔÇö view agent activity logs
+- **Cost** ÔÇö token usage and cost tracking
+- **Doctor** ÔÇö system health diagnostics
+- **Integrations** ÔÇö integration status and setup
+- **Pairing** ÔÇö device pairing management
 
 ### Firmware targets
 
@@ -319,7 +319,7 @@ React 19 + Vite 6 + Tailwind CSS 4 web dashboard served directly from the Gatewa
 - Web dashboard served directly from the Gateway.
 - Tunnel support: Cloudflare, Tailscale, ngrok, OpenVPN, custom command.
 - Docker runtime adapter for containerized execution.
-- CI/CD: beta (auto on push) → stable (manual dispatch) → Docker, crates.io, Scoop, AUR, Homebrew, tweet.
+- CI/CD: beta (auto on push) ÔåÆ stable (manual dispatch) ÔåÆ Docker, crates.io, Scoop, AUR, Homebrew, tweet.
 - Pre-built binaries for Linux (x86_64, aarch64, armv7), macOS (x86_64, aarch64), Windows (x86_64).
 
 
@@ -382,12 +382,12 @@ phone_number = "+1234567890"
 kind = "cloudflare"  # or "tailscale", "ngrok", "openvpn", "custom", "none"
 ```
 
-Details: [Channel reference](docs/reference/api/channels-reference.md) · [Config reference](docs/reference/api/config-reference.md)
+Details: [Channel reference](docs/reference/api/channels-reference.md) ┬À [Config reference](docs/reference/api/config-reference.md)
 
 ### Runtime support (current)
 
-- **`native`** (default) — direct process execution, fastest path, ideal for trusted environments.
-- **`docker`** — full container isolation, enforced security policies, requires Docker.
+- **`native`** (default) ÔÇö direct process execution, fastest path, ideal for trusted environments.
+- **`docker`** ÔÇö full container isolation, enforced security policies, requires Docker.
 
 Set `runtime.kind = "docker"` for strict sandboxing or network isolation.
 
@@ -424,11 +424,11 @@ zeroclaw agent --provider anthropic -m "hello"
 Workspace root: `~/.zeroclaw/workspace/` (configurable via config).
 
 Injected prompt files:
-- `IDENTITY.md` — agent personality and role
-- `USER.md` — user context and preferences
-- `MEMORY.md` — long-term facts and lessons
-- `AGENTS.md` — session conventions and initialization rules
-- `SOUL.md` — core identity and operating principles
+- `IDENTITY.md` ÔÇö agent personality and role
+- `USER.md` ÔÇö user context and preferences
+- `MEMORY.md` ÔÇö long-term facts and lessons
+- `AGENTS.md` ÔÇö session conventions and initialization rules
+- `SOUL.md` ÔÇö core identity and operating principles
 
 Skills: `~/.zeroclaw/workspace/skills/<skill>/SKILL.md` or `SKILL.toml`.
 
@@ -533,7 +533,7 @@ Full commands reference: [docs/reference/cli/commands-reference.md](docs/referen
 
 #### Optional
 
-- **Docker Desktop** — required only if using the [Docker sandboxed runtime](#runtime-support-current) (`runtime.kind = "docker"`). Install via `winget install Docker.DockerDesktop`.
+- **Docker Desktop** ÔÇö required only if using the [Docker sandboxed runtime](#runtime-support-current) (`runtime.kind = "docker"`). Install via `winget install Docker.DockerDesktop`.
 
 </details>
 
@@ -582,7 +582,7 @@ For pre-built binaries, see [GitHub Releases](https://github.com/zeroclaw-labs/z
 
 #### Optional
 
-- **Docker** — required only if using the [Docker sandboxed runtime](#runtime-support-current) (`runtime.kind = "docker"`). Install via your package manager or [docker.com](https://docs.docker.com/engine/install/).
+- **Docker** ÔÇö required only if using the [Docker sandboxed runtime](#runtime-support-current) (`runtime.kind = "docker"`). Install via your package manager or [docker.com](https://docs.docker.com/engine/install/).
 
 > **Note:** The default `cargo build --release` uses `codegen-units=1` to lower peak compile pressure. For faster builds on powerful machines, use `cargo build --profile release-fast`.
 
@@ -637,46 +637,46 @@ Use these when you're past the onboarding flow and want the deeper reference.
 - Proxy agent playbook: [docs/ops/proxy-agent-playbook.md](docs/ops/proxy-agent-playbook.md)
 - Hardware guides: [docs/hardware/README.md](docs/hardware/README.md)
 
-## Icy Crab 🦀
+## Icy Crab ­ƒªÇ
 
-ZeroClaw was built for the smooth crab 🦀, a fast and efficient AI assistant. Built by Argenis De La Rosa and the community.
+ZeroClaw was built for the smooth crab ­ƒªÇ, a fast and efficient AI assistant. Built by Argenis De La Rosa and the community.
 
 - [zeroclawlabs.ai](https://zeroclawlabs.ai)
 - [@zeroclawlabs](https://x.com/zeroclawlabs)
 
 ## Support ZeroClaw
 
-### 🙏 Special Thanks
+### ­ƒÖÅ Special Thanks
 
 A heartfelt thank you to the communities and institutions that inspire and fuel this open-source work:
 
-- **Harvard University** — for fostering intellectual curiosity and pushing the boundaries of what's possible.
-- **MIT** — for championing open knowledge, open source, and the belief that technology should be accessible to everyone.
-- **Sundai Club** — for the community, the energy, and the relentless drive to build things that matter.
-- **The World & Beyond** 🌍✨ — to every contributor, dreamer, and builder out there making open source a force for good. This is for you.
+- **Harvard University** ÔÇö for fostering intellectual curiosity and pushing the boundaries of what's possible.
+- **MIT** ÔÇö for championing open knowledge, open source, and the belief that technology should be accessible to everyone.
+- **Sundai Club** ÔÇö for the community, the energy, and the relentless drive to build things that matter.
+- **The World & Beyond** ­ƒîìÔ£¿ ÔÇö to every contributor, dreamer, and builder out there making open source a force for good. This is for you.
 
-We're building in the open because the best ideas come from everywhere. If you're reading this, you're part of it. Welcome. 🦀❤️
+We're building in the open because the best ideas come from everywhere. If you're reading this, you're part of it. Welcome. ­ƒªÇÔØñ´©Å
 
 ## Contributing
 
-New to ZeroClaw? Look for issues labeled [`good first issue`](https://github.com/zeroclaw-labs/zeroclaw/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) — see our [Contributing Guide](CONTRIBUTING.md#first-time-contributors) for how to get started. AI/vibe-coded PRs welcome! 🤖
+New to ZeroClaw? Look for issues labeled [`good first issue`](https://github.com/zeroclaw-labs/zeroclaw/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) ÔÇö see our [Contributing Guide](CONTRIBUTING.md#first-time-contributors) for how to get started. AI/vibe-coded PRs welcome! ­ƒñû
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](docs/contributing/cla.md). Implement a trait, submit a PR:
 
 - CI workflow guide: [docs/contributing/ci-map.md](docs/contributing/ci-map.md)
-- New `Provider` → `src/providers/`
-- New `Channel` → `src/channels/`
-- New `Observer` → `src/observability/`
-- New `Tool` → `src/tools/`
-- New `Memory` → `src/memory/`
-- New `Tunnel` → `src/tunnel/`
-- New `Peripheral` → `src/peripherals/`
-- New `Skill` → `~/.zeroclaw/workspace/skills/<name>/`
+- New `Provider` ÔåÆ `src/providers/`
+- New `Channel` ÔåÆ `src/channels/`
+- New `Observer` ÔåÆ `src/observability/`
+- New `Tool` ÔåÆ `src/tools/`
+- New `Memory` ÔåÆ `src/memory/`
+- New `Tunnel` ÔåÆ `src/tunnel/`
+- New `Peripheral` ÔåÆ `src/peripherals/`
+- New `Skill` ÔåÆ `~/.zeroclaw/workspace/skills/<name>/`
 
 <!-- BEGIN:RECENT_CONTRIBUTORS -->
 <!-- END:RECENT_CONTRIBUTORS -->
 
-## ⚠️ Official Repository & Impersonation Warning
+## ÔÜá´©Å Official Repository & Impersonation Warning
 
 **This is the only official ZeroClaw repository:**
 
@@ -697,7 +697,7 @@ ZeroClaw is dual-licensed for maximum openness and contributor protection:
 | [MIT](LICENSE-MIT) | Open-source, research, academic, personal use |
 | [Apache 2.0](LICENSE-APACHE) | Patent protection, institutional, commercial deployment |
 
-You may choose either license. **Contributors automatically grant rights under both** — see [CLA.md](docs/contributing/cla.md) for the full contributor agreement.
+You may choose either license. **Contributors automatically grant rights under both** ÔÇö see [CLA.md](docs/contributing/cla.md) for the full contributor agreement.
 
 ### Trademark
 
@@ -712,7 +712,7 @@ The **ZeroClaw** name and logo are trademarks of ZeroClaw Labs. This license doe
 
 ---
 
-**ZeroClaw** — Zero overhead. Zero compromise. Deploy anywhere. Swap anything. 🦀
+**ZeroClaw** ÔÇö Zero overhead. Zero compromise. Deploy anywhere. Swap anything. ­ƒªÇ
 
 ## Contributors
 
@@ -733,19 +733,3 @@ This list is generated from the GitHub contributors graph and updates automatica
     </picture>
   </a>
 </p>
-
----
-
-## SWAL Node Setup (Desarrollo Completo)
-
-Setup completo para replicar el entorno de desarrollo ZeroClaw con todas las tools SWAL:
-
-`ash
-# Docker (completo)
-curl -fsSL https://raw.githubusercontent.com/iberi22/zeroclaw-termux-dev-setup/master/bootstrap.sh | bash
-
-# Termux
-curl -fsSL https://raw.githubusercontent.com/iberi22/zeroclaw-termux-dev-setup/master/install-swal-node.sh | bash
-`
-
-Ver [SWAN_PLAN.md](./SWAN_PLAN.md) para detalles completos.
