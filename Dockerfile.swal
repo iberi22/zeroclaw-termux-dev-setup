@@ -1,295 +1,133 @@
 # =============================================================================
-# ZeroClaw SWARM Node — Dockerfile
+# ZeroClaw SWARM Node - Dockerfile
 # =============================================================================
-# Imagen Docker con TODAS las tools de desarrollo + CLI agents
+# Imagen Docker con TODAS las tools de desarrollo
+# Schwerpunkt: Dev environment, NO heavy compilation (Rust OOM in Docker)
 # =============================================================================
 
-# syntax=docker/dockerfile:1.7
+FROM debian:trixie-slim
 
-# ── Stage 1: Builder ────────────────────────────────────────────────────
-FROM rust:1.94-slim AS builder
+# =============================================================================
+# Labels
+# =============================================================================
+LABEL maintainer="Belal <belal@swal.ai>"
+LABEL description="ZeroClaw SWARM Node - Full dev environment with AI agents"
+LABEL version="1.0.0"
 
-WORKDIR /build
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y \
-        pkg-config git curl wget unzip
+# =============================================================================
+# ENV
+# =============================================================================
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV EDITOR=nano VISUAL=nano PAGER=less
+ENV NPM_CONFIG_LOGLEVEL=info
+ENV RUST_BACKTRACE=1
+ENV CARGO_BUILD_JOBS=2
+ENV DEBIAN_FRONTEND=noninteractive
 
-# ── ZeroClaw ────────────────────────────────────────────────────────────
-ARG ZEROCLAW_REPO="https://github.com/zeroclaw-labs/zeroclaw.git"
-ARG ZEROCLAW_BRANCH="master"
-RUN --mount=type=cache,id=zeroclaw-git,target=/root/.cache/git \
-    git clone --depth 1 --branch ${ZEROCLAW_BRANCH} ${ZEROCLAW_REPO} zeroclaw
-
-WORKDIR /build/zeroclaw
-RUN --mount=type=cache,id=cargo-reg,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git \
-    --mount=type=cache,id=build-tgt,target=/build/target \
-    cargo build --release --locked \
-    --features "channel-nostr,channel-lark,whatsapp-web"
-
-# ── Gestalt Swarm ────────────────────────────────────────────────────────
-WORKDIR /build
-ARG GESTALT_REPO="https://github.com/iberi22/gestalt-rust.git"
-RUN --mount=type=cache,id=gestalt-git,target=/root/.cache/git \
-    git clone --depth 1 ${GESTALT_REPO} gestalt-rust
-
-WORKDIR /build/gestalt-rust
-RUN --mount=type=cache,id=cargo-reg,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git \
-    --mount=type=cache,id=gestalt-tgt,target=/build/target \
-    cargo build --release -p gestalt_swarm
-
-# ── Stage 2: Runtime ────────────────────────────────────────────────────
-FROM debian:trixie-slim AS runtime
-
-LABEL maintainer="SWAL <agent@swal.ai>"
-
-# ════════════════════════════════════════════════════════════════════════
-# BASE PACKAGES
-# ════════════════════════════════════════════════════════════════════════
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y \
+# =============================================================================
+# BASE SYSTEM - Todo en una sola capa para minimizar imagen
+# =============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl wget git vim nano unzip zip \
     htop tree jq ripgrep fd-find fzf \
-    openssh-server ufw fail2ban \
-    build-essential pkg-config \
-    cmake ninja-build clang make autoconf automake libtool \
-    python3 python3-pip python3-venv python3-dev \
+    build-essential pkg-config cmake ninja-build clang make autoconf automake libtool \
+    openssl libssl-dev \
     nodejs npm \
     golang-go \
-    openjdk-17-jdk maven gradle \
+    default-jdk maven \
     ruby ruby-dev \
     php php-cli php-mbstring php-xml php-curl php-zip \
     sqlite3 postgresql-client redis-tools \
     netcat-openbsd telnet dnsutils \
-    tmux screen rsync tar gzip bzip2 p7zip-full tzdata sudo gnupg2 \
+    tmux screen rsync tar gzip bzip2 p7zip-full \
+    tzdata sudo gnupg2 \
+    python3 python3-pip python3-venv python3-dev \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get autoremove -y && apt-get clean
+    && apt-get clean
 
-# ════════════════════════════════════════════════════════════════════════
-# NODE.JS — LTS + Globals
-# ════════════════════════════════════════════════════════════════════════
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-    apt-get install -y nodejs && \
-    npm install -g \
-        npm@latest pnpm yarn \
-        typescript ts-node ts-node-dev @types/node \
-        prettier eslint dotenv-cli cross-env \
-        neovim
-
-# ════════════════════════════════════════════════════════════════════════
-# PYTHON — AI/ML + Dev
-# ════════════════════════════════════════════════════════════════════════
-RUN pip3 install --upgrade pip && pip3 install \
-    requests httpx aiohttp fastapi uvicorn pydantic \
-    openai anthropic groq google-generativeai langchain langchain-community \
-    pandas numpy matplotlib jupyter ipython \
-    black ruff mypy pytest pytest-asyncio \
-    python-dotenv pyyaml toml rich typer click \
-    beautifulsoup4 lxml playwright selenium \
-    flask quart python-dotenv
-
-# ════════════════════════════════════════════════════════════════════════
-# GO — Tools
-# ════════════════════════════════════════════════════════════════════════
-ENV GOPATH=/root/go
-ENV PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
-RUN mkdir -p $GOPATH/bin && \
-    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
-    go install github.com/swaggest/swag/cmd/swag@latest && \
-    go install github.com/rakyll/statik@latest
-
-# ════════════════════════════════════════════════════════════════════════
-# RUST — Toolchain
-# ════════════════════════════════════════════════════════════════════════
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
-    --default-toolchain stable --profile default \
-    --component rustfmt clippy rust-docs
-
-ENV PATH=$PATH:/root/.cargo/bin
-ENV RUSTUP_HOME=/root/.rustup
-ENV CARGO_HOME=/root/.cargo
-
-# Rust tools
-RUN . $HOME/.cargo/env && \
-    cargo install cargo-edit cargo-watch cargo-expand cargo-tree diesel_cli 2>/dev/null || true
-
-# ════════════════════════════════════════════════════════════════════════
-# PHP — Composer
-# ════════════════════════════════════════════════════════════════════════
-RUN curl -sS https://getcomposer.org/installer | php -- \
-    --install-dir=/usr/local/bin --filename=composer
-
-# ════════════════════════════════════════════════════════════════════════
-# BUN
-# ════════════════════════════════════════════════════════════════════════
-RUN curl -fsSL https://bun.sh/install | bash
-
-# ════════════════════════════════════════════════════════════════════════
-# DENO
-# ════════════════════════════════════════════════════════════════════════
-RUN curl -fsSL https://deno.land/install.sh | sh
-
-# ════════════════════════════════════════════════════════════════════════
-# CLI AGENTS — Opcionales
-# ════════════════════════════════════════════════════════════════════════
-
-# ── Jules (Google's Autonomous Coding Agent) ───────────────────────────
-# Activado via GitHub Issues con label `jules` en iberi22/*
-ARG INSTALL_JULES=true
-RUN if [ "$INSTALL_JULES" = "true" ]; then \
-    npm install -g @anthropic-ai/jules 2>/dev/null || \
-    curl -fsSL https://get.jules.ai | bash 2>/dev/null || true; \
-    fi
-
-# ── Claude Code ────────────────────────────────────────────────────────
-ARG INSTALL_CLAUDE_CODE=true
-RUN if [ "$INSTALL_CLAUDE_CODE" = "true" ]; then \
-    npm install -g @anthropic/claude-code 2>/dev/null || true; \
-    fi
-
-# ── OpenCode ───────────────────────────────────────────────────────────
-ARG INSTALL_OPENCODE=true
-RUN if [ "$INSTALL_OPENCODE" = "true" ]; then \
-    npm install -g opencode-cli 2>/dev/null || true; \
-    fi
-
-# ── Gemini CLI ─────────────────────────────────────────────────────────
-ARG INSTALL_GEMINI_CLI=true
-RUN if [ "$INSTALL_GEMINI_CLI" = "true" ]; then \
-    npm install -g @google/gemini-cli 2>/dev/null || true; \
-    fi
-
-# ════════════════════════════════════════════════════════════════════════
-# INFRASTRUCTURE CLIs
-# ════════════════════════════════════════════════════════════════════════
-
-# ── Supabase CLI ───────────────────────────────────────────────────────
-ARG INSTALL_SUPABASE=true
-RUN if [ "$INSTALL_SUPABASE" = "true" ]; then \
-    curl -fsSL \
-    "https://github.com/supabase/cli/releases/download/v1.165.0/supabase_1.165.0_linux_amd64.tar.gz" \
-    -o /tmp/supabase.tar.gz && \
-    tar -xzf /tmp/supabase.tar.gz -C /tmp && \
-    mv /tmp/supabase /usr/local/bin/ && chmod +x /usr/local/bin/supabase \
-    || npm install -g supabase 2>/dev/null || true; \
-    fi
-
-# ── AWS CLI ────────────────────────────────────────────────────────────
-ARG INSTALL_AWS=true
-RUN if [ "$INSTALL_AWS" = "true" ]; then \
-    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
-    -o /tmp/awscliv2.zip && \
-    unzip -q /tmp/awscliv2.zip -d /tmp && \
-    /tmp/aws/install 2>/dev/null || true; \
-    fi
-
-# ── GCP CLI (gcloud) ────────────────────────────────────────────────────
-ARG INSTALL_GCP=true
-RUN if [ "$INSTALL_GCP" = "true" ]; then \
-    curl -fsSL https://sdk.cloud.google.com | bash -s -- \
-    --disable-prompts --install-dir=/opt 2>/dev/null || true; \
-    fi
-
-# ── Cloudflare Wrangler ─────────────────────────────────────────────────
-ARG INSTALL_CLOUDFLARE=true
-RUN if [ "$INSTALL_CLOUDFLARE" = "true" ]; then \
-    npm install -g wrangler 2>/dev/null || true; \
-    fi
-
-# ── Terraform ─────────────────────────────────────────────────────────
-ARG INSTALL_TERRAFORM=true
-RUN if [ "$INSTALL_TERRAFORM" = "true" ]; then \
-    TERRAFORM_VERSION="1.6.0" && \
-    curl -fsSL \
-    "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
-    -o /tmp/terraform.zip && \
-    unzip -q /tmp/terraform.zip -d /usr/local/bin/ && \
-    chmod +x /usr/local/bin/terraform || true; \
-    fi
-
-# ── Pulumi ─────────────────────────────────────────────────────────────
-ARG INSTALL_PULUMI=true
-RUN if [ "$INSTALL_PULUMI" = "true" ]; then \
-    curl -fsSL https://get.pulumi.com | bash -s -- --version 3.88.0 2>/dev/null \
-    || npm install -g pulumi 2>/dev/null || true; \
-    fi
-
-# ════════════════════════════════════════════════════════════════════════
-# FLUTTER SDK (opcional, pesado ~2GB)
-# ════════════════════════════════════════════════════════════════════════
-ARG INSTALL_FLUTTER=false
-RUN if [ "$INSTALL_FLUTTER" = "true" ]; then \
-    git clone --depth 1 -b stable \
-    https://github.com/flutter/flutter.git /opt/flutter && \
-    /opt/flutter/bin/flutter precache && \
-    echo 'export PATH="/opt/flutter/bin:$PATH"' >> /root/.bashrc; \
-    fi
-
-# ════════════════════════════════════════════════════════════════════════
-# COPIAR BINARIES
-# ════════════════════════════════════════════════════════════════════════
-COPY --from=builder /build/zeroclaw/target/release/zeroclaw /usr/local/bin/zeroclaw
-COPY --from=builder /build/gestalt-rust/target/release/gestalt_swarm /usr/local/bin/gestalt_swarm
-
-# ════════════════════════════════════════════════════════════════════════
-# USUARIO
-# ════════════════════════════════════════════════════════════════════════
+# =============================================================================
+# SSH - Agent user
+# =============================================================================
 RUN useradd -m -s /bin/bash -G sudo,www-data agent && \
     echo "agent ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
     mkdir -p /home/agent/.ssh && \
     chown -R agent:agent /home/agent
 
-# ════════════════════════════════════════════════════════════════════════
-# DIRECTORIOS
-# ════════════════════════════════════════════════════════════════════════
-RUN mkdir -p /zeroclaw/workspace /zeroclaw/projects /zeroclaw/skills \
-             /zeroclaw/logs /swal-projects /run/sshd \
-             /var/log/zeroclaw /cortex && \
-    chown -R agent:agent /zeroclaw /swal-projects
-
-# ════════════════════════════════════════════════════════════════════════
-# SSH
-# ════════════════════════════════════════════════════════════════════════
-RUN ssh-keygen -A && \
-    cat > /etc/ssh/sshd_config << 'SSHEOF'
-Port 2222
-PermitRootLogin yes
-AuthorizedKeysFile /zeroclaw/ssh/authorized_keys
-PasswordAuthentication no
-PubkeyAuthentication yes
-UsePAM yes
-X11Forwarding no
-SSHEOF
-
-# ════════════════════════════════════════════════════════════════════════
+# =============================================================================
 # SCRIPTS
-# ════════════════════════════════════════════════════════════════════════
+# =============================================================================
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY scripts/healthcheck.sh /usr/local/bin/healthcheck.sh
+COPY scripts/start-zeroclaw.sh /usr/local/bin/start-zeroclaw.sh
 RUN chmod +x /usr/local/bin/*.sh
+RUN chmod +x /usr/local/bin/start-zeroclaw.sh
 
-# ════════════════════════════════════════════════════════════════════════
-# ENVIRONMENT
-# ════════════════════════════════════════════════════════════════════════
-ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
-ENV EDITOR=nano VISUAL=nano PAGER=less
-ENV RUST_BACKTRACE=1 RUST_LOG=info
-ENV ZEROCLAW_WORKSPACE=/zeroclaw/workspace
-ENV ZEROCLAW_GATEWAY_PORT=42617
-ENV HOME=/home/agent
-ENV GOPATH=/root/go
-ENV PATH=/usr/local/bin:/usr/local/go/bin:/root/.cargo/bin:/opt/flutter/bin:$HOME/.local/bin:$PATH
-ENV NVM_DIR=$HOME/.nvm
+# =============================================================================
+# NODE.JS - NodeSource LTS + Globals
+# =============================================================================
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /zeroclaw/workspace
+RUN npm install -g pnpm yarn typescript ts-node ts-node-dev @types/node prettier eslint dotenv-cli cross-env neovim wrangler
+
+# =============================================================================
+# PYTHON - Use system pip with break-system-packages
+# =============================================================================
+RUN pip3 install --break-system-packages --no-deps --ignore-installed \
+    requests httpx aiohttp fastapi uvicorn pydantic \
+    openai anthropic groq google-generativeai langchain langchain-community \
+    pandas numpy matplotlib jupyter ipython \
+    black ruff mypy pytest pytest-asyncio \
+    python-dotenv pyyaml toml rich typer click \
+    sqlalchemy psycopg2-binary redis beautifulsoup4 \
+    lxml pillow scikit-learn
+
+# =============================================================================
+# GO - Solo swag (herramienta pequena)
+# =============================================================================
+RUN go install github.com/swaggo/swag/cmd/swag@latest 2>/dev/null || true
+
+# =============================================================================
+# SUPABASE CLI
+# =============================================================================
+RUN curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz -o /tmp/supabase.tar.gz && \
+    tar -xzf /tmp/supabase.tar.gz -C /tmp && \
+    mv /tmp/supabase /usr/local/bin/ && chmod +x /usr/local/bin/supabase || true
+RUN rm -f /tmp/supabase.tar.gz
+
+# =============================================================================
+# TERRAFORM
+# =============================================================================
+RUN curl -fsSL https://releases.hashicorp.com/terraform/1.9.0/terraform_1.9.0_linux_amd64.zip -o /tmp/terraform.zip && \
+    unzip -o /tmp/terraform.zip -d /usr/local/bin/ && rm /tmp/terraform.zip
+
+# =============================================================================
+# PULUMI (lightweight install)
+# =============================================================================
+RUN curl -fsSL https://get.pulumi.com | sh -s -- --version 3.128.0
+ENV PATH="/root/.pulumi/bin:${PATH}"
+
+# =============================================================================
+# GESTALT CLI - Placeholder (build in host, too heavy for Docker OOM)
+# =============================================================================
+RUN echo '#!/bin/bash' > /usr/local/bin/gestalt_cli && echo 'echo "gestalt_cli PLACEHOLDER"' >> /usr/local/bin/gestalt_cli && echo 'exit 1' >> /usr/local/bin/gestalt_cli && chmod +x /usr/local/bin/gestalt_cli
+
+# =============================================================================
+# ZERO CLAW - Placeholder (repo potentially private, build OOM)
+# =============================================================================
+RUN echo '#!/bin/bash' > /usr/local/bin/zeroclaw && echo 'echo "zeroclaw PLACEHOLDER"' >> /usr/local/bin/zeroclaw && echo 'exit 1' >> /usr/local/bin/zeroclaw && chmod +x /usr/local/bin/zeroclaw
+
+# =============================================================================
+# WORKSPACE + DIAGNOSTIC
+# =============================================================================
+WORKDIR /zeroclaw
+RUN mkdir -p /zeroclaw/workspace /zeroclaw/skills/openclaw /zeroclaw/logs
+
+# =============================================================================
+# FINAL
+# =============================================================================
 USER agent
-
-EXPOSE 2222 42617 8003
-
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=20s \
-    CMD /usr/local/bin/healthcheck.sh || exit 1
+WORKDIR /home/agent
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
