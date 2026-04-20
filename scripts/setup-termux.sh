@@ -164,9 +164,122 @@ fi
 success "ZeroClaw configurado"
 
 # ============================================================
-# 5. SHOW CONFIG
+# 5. ZEROCLAW DOCTOR - Health Check
 # ============================================================
-info "5/5 - Verificando y reconfigurando si es necesario..."
+info "5/5 - Ejecutando ZeroClaw Doctor..."
+
+echo ""
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BOLD}  🩺 ZEROCLAW DOCTOR - Health Check${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+DOCTOR_PASS=0
+DOCTOR_FAIL=0
+
+check() {
+    if [[ $1 -eq 0 ]]; then
+        echo -e "   ${GREEN}✅ $2${NC}"
+        DOCTOR_PASS=$((DOCTOR_PASS + 1))
+    else
+        echo -e "   ${RED}❌ $2${NC}"
+        DOCTOR_FAIL=$((DOCTOR_FAIL + 1))
+    fi
+}
+
+# Check 1: Config file exists
+[[ -f "$CONFIG_FILE" ]]
+check $? "Config file exists"
+
+# Check 2: Config has [agent] section
+grep -q '^\[agent\]' "$CONFIG_FILE"
+check $? "[agent] section present"
+
+# Check 3: Config has autonomy_level = full
+grep -q 'autonomy_level.*=.*"full"' "$CONFIG_FILE"
+check $? "autonomy_level = full"
+
+# Check 4: Config has [providers.models.minimax]
+grep -q '^\[providers\.models\.minimax\]' "$CONFIG_FILE"
+check $? "providers.models.minimax defined"
+
+# Check 5: Config has MiniMax base_url
+grep -q 'base_url.*=.*"https://api\.minimaxi\.chat' "$CONFIG_FILE"
+check $? "MiniMax base_url correct (api.minimaxi.chat)"
+
+# Check 6: Config has providers.fallback (valid reference)
+if grep -q '^\[providers\.fallback\]' "$CONFIG_FILE"; then
+    FALLBACK_REF=$(grep -A1 '^\[providers\.fallback\]' "$CONFIG_FILE" | grep 'provider' | sed 's/.*= *//' | tr -d ' "')
+    if grep -q "^\[providers\.models\.${FALLBACK_REF}\]$" "$CONFIG_FILE" 2>/dev/null; then
+        check 0 "providers.fallback references valid model"
+    else
+        check 1 "providers.fallback references '${FALLBACK_REF}' - MODEL NOT FOUND"
+    fi
+else
+    check 1 "providers.fallback section missing"
+fi
+
+# Check 7: ZeroClaw binary exists
+command -v zeroclaw &>/dev/null
+check $? "zeroclaw binary installed"
+
+# Check 8: MINIMAX_API_KEY set in environment
+[[ -n "$MINIMAX_API_KEY" ]]
+check $? "MINIMAX_API_KEY environment variable set"
+
+# Check 9: MiniMax API reachable
+if [[ -n "$MINIMAX_API_KEY" ]]; then
+    curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $MINIMAX_API_KEY" "https://api.minimaxi.chat/v1/models" &>/dev/null
+    [[ "$?" == "000" ]] && curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $MINIMAX_API_KEY" "https://api.minimaxi.chat/v1/models" | grep -qE "200|401|403"
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $MINIMAX_API_KEY" "https://api.minimaxi.chat/v1/models" --max-time 10 2>/dev/null)
+    [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "401" || "$HTTP_CODE" == "403" ]]
+    check $? "MiniMax API reachable (HTTP $HTTP_CODE)"
+else
+    check 1 "MiniMax API not testable (no API key)"
+fi
+
+# Check 10: Telegram bot token (if set)
+if [[ -n "$TG_TOKEN" ]]; then
+    grep -q 'bot_token' "$CONFIG_FILE"
+    check $? "Telegram bot token configured"
+else
+    echo -e "   ${YELLOW}⚠️  Telegram bot token not set (optional)${NC}"
+fi
+
+# Summary
+echo ""
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "   ${BOLD}🩺 Doctor Summary: ${GREEN}$DOCTOR_PASS passed${NC} ${RED}$DOCTOR_FAIL failed${NC}${BOLD}${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+if [[ $DOCTOR_FAIL -eq 0 ]]; then
+    echo -e "   ${GREEN}✅ System READY to launch!${NC}"
+    echo ""
+    echo -e "   ${BOLD}Run: ${GREEN}zeroclaw daemon${NC} ${BOLD}to start${NC}"
+    LAUNCH_READY=1
+else
+    echo -e "   ${RED}❌ Issues found - fix before launching${NC}"
+    echo ""
+    echo -e "   ${BOLD}Run setup again: ${CYAN}curl -fsSL ... | bash${NC}"
+    LAUNCH_READY=0
+fi
+
+# Optional: Test daemon startup (3 second test)
+if [[ $DOCTOR_FAIL -eq 0 ]] && command -v zeroclaw &>/dev/null; then
+    echo ""
+    echo -ne "   ${BOLD}Testing daemon startup (5s)... ${NC}"
+    zeroclaw daemon &>/dev/null &
+    ZC_PID=$!
+    sleep 5
+    kill $ZC_PID 2>/dev/null || true
+    if curl -s --max-time 3 "http://127.0.0.1:42617/health" | grep -q "ok" 2>/dev/null; then
+        echo -e "${GREEN}✅ Daemon started and responding!${NC}"
+        echo -e "   ${GREEN}Gateway: http://127.0.0.1:42617${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Daemon started but health check pending${NC}"
+        echo -e "   Gateway should be at http://127.0.0.1:42617"
+    fi
+fi
 
 # ============================================================
 # 5. VALIDATE AND FIX CONFIG
