@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
-# ZeroClaw SWAL Node - Termux Setup v4.2
-# With interactive menu and SWAL status dashboard
+# ZeroClaw SWAL Node - Termux Setup v5.0
+# With interactive menu, SWAL status dashboard, and dev tools
 # ============================================================
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -19,14 +19,81 @@ STATUS_URL="https://raw.githubusercontent.com/iberi22/zeroclaw-termux-dev-setup/
 
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║${NC}  ${BOLD}${GREEN}ZeroClaw SWAL Node - Termux Setup v4.2${NC}           ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}  ${BOLD}${GREEN}ZeroClaw SWAL Node - Termux Setup v5.0${NC}           ${CYAN}║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 # ============================================================
+# 0. CHECK AND INSTALL MISSING TOOLS
+# ============================================================
+info "0/6 - Verificando herramientas de desarrollo..."
+
+MISSING_TOOLS=()
+INSTALLED=()
+
+check_tool() {
+    if command -v "$1" &>/dev/null; then
+        INSTALLED+=("$1")
+    else
+        MISSING_TOOLS+=("$1")
+    fi
+}
+
+# Core tools to check
+check_tool "git"
+check_tool "curl"
+check_tool "wget"
+check_tool "python"
+check_tool "python3"
+check_tool "pip"
+check_tool "pip3"
+check_tool "node"
+check_tool "npm"
+check_tool "gh"
+check_tool "rustc"
+check_tool "cargo"
+
+echo -e "   ${GREEN}✅ Instaladas:${NC} ${INSTALLED[*]}"
+if [ ${#MISSING_TOOLS[@]} -gt 0 ]; then
+    echo -e "   ${YELLOW}⚠️  Faltan:${NC} ${MISSING_TOOLS[*]}"
+    info "Instalando herramientas faltantes..."
+    
+    # Update package list
+    pkg update -y 2>/dev/null
+    
+    # Install missing tools
+    for tool in "${MISSING_TOOLS[@]}"; do
+        case "$tool" in
+            "gh")
+                pkg install gh -y 2>/dev/null
+                success "gh instalado"
+                ;;
+            "rustc"|"cargo")
+                pkg install rust -y 2>/dev/null
+                success "Rust instalado"
+                ;;
+            "node"|"npm")
+                pkg install nodejs -y 2>/dev/null
+                success "Node.js instalado"
+                ;;
+            "python"|"python3"|"pip"|"pip3")
+                pkg install python -y 2>/dev/null
+                success "Python instalado"
+                ;;
+            *)
+                # Try generic install
+                pkg install "$tool" -y 2>/dev/null || true
+                ;;
+        esac
+    done
+else
+    success "Todas las herramientas ya estan instaladas"
+fi
+
+# ============================================================
 # 1. FIX BROKEN CONFIG
 # ============================================================
-info "1/5 - Verificando configuraciones rotas..."
+info "1/6 - Verificando configuraciones rotas..."
 
 if [[ -f "$HOME/.bashrc" ]]; then
     if grep -q "zeroclaw start" "$HOME/.bashrc" 2>/dev/null; then
@@ -49,14 +116,14 @@ success "Configuraciones rotas verificadas"
 # ============================================================
 # 2. CLEAN MOTD
 # ============================================================
-info "2/5 - Limpiando mensajes de inicio..."
+info "2/6 - Limpiando mensajes de inicio..."
 touch "$HOME/.hushlogin" 2>/dev/null || true
 success "Mensajes limpiados"
 
 # ============================================================
 # 3. INSTALL SWAL STATUS SCRIPT
 # ============================================================
-info "3/5 - Instalando SWAL status dashboard..."
+info "3/6 - Instalando SWAL status dashboard..."
 
 mkdir -p "$HOME/.local/bin"
 
@@ -91,7 +158,7 @@ success "MOTD configurado"
 # ============================================================
 # 4. CONFIGURE ZEROCLAW
 # ============================================================
-info "4/5 - Configurando ZeroClaw..."
+info "4/6 - Configurando ZeroClaw..."
 
 mkdir -p "$HOME/.zeroclaw"
 
@@ -114,7 +181,7 @@ cat > "$CONFIG_FILE" << CONFIGEOF
 autonomy_level = "full"
 
 [security]
-allowed_commands = ["pkg", "pkg_install", "pkg_update", "pkg_upgrade", "termux-setup-storage", "git", "curl", "wget", "bash", "sh", "echo", "pwd", "ls", "cd", "mkdir", "rm", "cp", "mv", "cat", "grep", "sed", "awk", "find", "npm", "node", "python", "python3", "pip", "pip3"]
+allowed_commands = ["pkg", "git", "curl", "wget", "bash", "sh", "python", "python3", "pip", "npm", "node", "ssh", "scp", "find", "grep", "sed", "awk", "cat", "ls", "cd", "mkdir", "rm", "cp", "mv", "gh", "docker", "cargo", "rustc", "pip3"]
 
 [workspace]
 path = "~/.zeroclaw/workspace"
@@ -166,7 +233,7 @@ success "ZeroClaw configurado"
 # ============================================================
 # 5. ZEROCLAW DOCTOR - Health Check
 # ============================================================
-info "5/5 - Ejecutando ZeroClaw Doctor..."
+info "5/6 - Ejecutando ZeroClaw Doctor..."
 
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -238,12 +305,16 @@ else
     check 1 "MiniMax API not testable (no API key)"
 fi
 
-# Check 10: Telegram bot token (if set)
-if [[ -n "$TG_TOKEN" ]]; then
-    grep -q 'bot_token' "$CONFIG_FILE"
-    check $? "Telegram bot token configured"
+# Check 10: GH CLI installed
+command -v gh &>/dev/null
+check $? "gh CLI installed"
+
+# Check 11: GitHub auth status
+if command -v gh &>/dev/null; then
+    gh auth status &>/dev/null
+    check $? "GitHub authenticated"
 else
-    echo -e "   ${YELLOW}⚠️  Telegram bot token not set (optional)${NC}"
+    check 1 "GitHub auth not testable (gh not installed)"
 fi
 
 # Summary
@@ -282,8 +353,10 @@ if [[ $DOCTOR_FAIL -eq 0 ]] && command -v zeroclaw &>/dev/null; then
 fi
 
 # ============================================================
-# 5. VALIDATE AND FIX CONFIG
+# 6. VALIDATE AND FIX CONFIG
 # ============================================================
+info "6/6 - Validando configuracion..."
+
 if [[ ! -f "$CONFIG_FILE" ]]; then
     error "Config no existe! Ejecuta el setup de nuevo."
     exit 1
@@ -324,19 +397,8 @@ done
 if [[ $CONFIG_ISSUES -eq 0 ]]; then
     success "Config verificada - todo OK"
 else
-    warn "Se encontraron y修复aron $CONFIG_ISSUES problema(s) en el config"
+    warn "Se encontraron y repararon $CONFIG_ISSUES problema(s) en el config"
 fi
-
-# Show final config
-echo ""
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BOLD}  CONFIGURACION DE SEGURIDAD ZEROCLAW${NC}"
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-echo "Archivo: $CONFIG_FILE"
-echo ""
-cat "$CONFIG_FILE"
-echo ""
 
 # ============================================================
 # SHOW STATUS DASHBOARD
@@ -375,6 +437,7 @@ echo -e "   ${GREEN}[2]${NC}  Reiniciar ZeroClaw daemon"
 echo -e "   ${GREEN}[3]${NC}  Ver status completo (swal-status)"
 echo -e "   ${GREEN}[4]${NC}  Ver config de ZeroClaw"
 echo -e "   ${GREEN}[5]${NC}  Abrir shell de ZeroClaw"
+echo -e "   ${GREEN}[6]${NC}  Configurar GH (GitHub CLI)"
 echo -e "   ${GREEN}[0]${NC}  Salir (solo mostrar MOTD)"
 echo ""
 echo -ne "   ${BOLD}Selecciona una opcion:${NC} "
@@ -426,6 +489,17 @@ case "$option" in
             zeroclaw shell
         else
             echo -e "${RED}zeroclaw no esta instalado${NC}"
+        fi
+        ;;
+    6)
+        echo ""
+        info "Configurando GitHub CLI (gh)..."
+        if command -v gh &>/dev/null; then
+            echo -e "${CYAN}GH ya esta instalado. Estado:${NC}"
+            gh auth status
+        else
+            echo -e "${YELLOW}GH no esta instalado. Instalandolo...${NC}"
+            pkg install gh -y
         fi
         ;;
     0|*)
