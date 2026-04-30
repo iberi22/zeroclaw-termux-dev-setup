@@ -1,0 +1,217 @@
+#!/bin/bash
+# =============================================================================
+# Cloudflare Tunnel SSH Client Setup - PC Side
+# =============================================================================
+# This script configures your PC (Windows/OpenClaw) to connect to Termux
+# through the Cloudflare Tunnel.
+#
+# Run this on your PC, NOT on Termux.
+# =============================================================================
+
+set -Eeuo pipefail
+
+readonly SCRIPT_NAME="setup-pc-ssh-cftunnel.sh"
+readonly CF_SSH_HOSTNAME="termux-ssh"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
+
+log() { printf "%b[PC]%b %s\n" "$1" "$NC" "$*"; }
+info()    { log "$CYAN" "INFO" "$@"; }
+success() { log "$GREEN" "OK" "$@"; }
+warn()    { log "$YELLOW" "WARN" "$@"; }
+error()   { log "$RED" "ERROR" "$@"; }
+
+echo -e "${CYAN}"
+echo "============================================================"
+echo "  PC Side: Cloudflare Tunnel SSH Configuration"
+echo "============================================================"
+echo -e "${NC}"
+echo ""
+
+# =============================================================================
+# CHECK CLOUDFLARED ON PC
+# =============================================================================
+
+check_cloudflared_pc() {
+    if command -v cloudflared &> /dev/null; then
+        local ver=$(cloudflared --version 2>/dev/null | head -1)
+        info "cloudflared found: $ver"
+    else
+        error "cloudflared not found on this PC."
+        echo ""
+        echo "Install cloudflared on your PC:"
+        echo "  Windows: winget install Cloudflare.cloudflared"
+        echo "  macOS:   brew install cloudflared"
+        echo "  Linux:   curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb && sudo dpkg -i cloudflared.deb"
+        echo ""
+        exit 1
+    fi
+}
+
+# =============================================================================
+# GET TUNNEL HOSTNAME
+# =============================================================================
+
+get_tunnel_hostname() {
+    info "Checking active tunnels..."
+    echo ""
+    
+    local output=$(cloudflared tunnel list 2>/dev/null)
+    echo "$output"
+    echo ""
+    
+    # Extract the first tunnel hostname if available
+    if echo "$output" | grep -q "termux-ssh"; then
+        local hostname=$(echo "$output" | grep "termux-ssh" | awk '{print $3}')
+        if [[ -n "$hostname" ]]; then
+            CF_TUNNEL_HOSTNAME="$hostname"
+            success "Found Termux tunnel: $hostname"
+            return 0
+        fi
+    fi
+    
+    warn "No 'termux-ssh' tunnel found in your Cloudflare account."
+    echo ""
+    echo "On Termux, make sure you:"
+    echo "  1. Ran 'cloudflared tunnel login'"
+    echo "  2. Ran this script: bash cloudflared-ssh-tunnel.sh"
+    echo ""
+    
+    read -p "Enter the tunnel hostname (from cloudflared tunnel list): " hostname
+    if [[ -z "$hostname" ]]; then
+        error "Hostname required. Exiting."
+        exit 1
+    fi
+    CF_TUNNEL_HOSTNAME="$hostname"
+}
+
+# =============================================================================
+# GET TERMUX USER
+# =============================================================================
+
+get_termux_user() {
+    read -p "Termux user (default: u0_a + uid, press Enter to detect): " user_input
+    
+    if [[ -z "$user_input" ]]; then
+        # Try to detect from known Termux UIDs
+        info "Checking Termux SSH config..."
+        # Common Termux UID range starts at 10000
+        uid=$(id -u 2>/dev/null || echo "unknown")
+        # For Termux, the convention is u0_a<uid-10000>
+        # But we can't know from here, so default to u0_a0 for Android 6+
+        CF_TERMUX_USER="u0_a$(echo "$uid" | sed 's/^1/0/' | head -c 1)"
+        info "Detected Termux user: $CF_TERMUX_USER (verify this is correct)"
+    else
+        CF_TERMUX_USER="$user_input"
+    fi
+}
+
+# =============================================================================
+# UPDATE SSH CONFIG
+# =============================================================================
+
+update_ssh_config() {
+    local ssh_config_file="$HOME/.ssh/config"
+    local hostname="$CF_TUNNEL_HOSTNAME"
+    local termux_user="$CF_TERMUX_USER"
+    
+    info "Updating SSH config at: $ssh_config_file"
+    
+    # Create .ssh directory if needed
+    mkdir -p "$HOME/.ssh"
+    
+    # Backup existing config
+    if [[ -f "$ssh_config_file" ]]; then
+        cp "$ssh_config_file" "$ssh_config_file.backup.$(date +%Y%m%d%H%M%S)"
+        success "Backed up existing SSH config"
+    fi
+    
+    # Add Cloudflare Tunnel SSH entry
+    cat >> "$ssh_config_file" << SSH_CONFIG_EOF
+
+# =============================================================================
+# Cloudflare Tunnel SSH to Termux
+# Generated by cloudflared-ssh-tunnel.sh
+# Do not edit manually - regenerate with setup-pc-ssh-cftunnel.sh
+# =============================================================================
+Host termux-cf
+    HostName $hostname
+    User $termux_user
+    Port 8022
+    ProxyCommand cloudflared access ssh --hostname %h
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+
+# Alternative direct SSH (only works on same network)
+Host termux-local
+    HostName 192.168.1.6
+    User u0_a
+    Port 8022
+    StrictHostKeyChecking no
+
+SSH_CONFIG_EOF
+
+    success "SSH config updated ✓"
+    
+    # Set proper permissions
+    chmod 600 "$ssh_config_file" 2>/dev/null || true
+    
+    echo ""
+    echo -e "${GREEN}SSH config updated!${NC}"
+    echo ""
+    echo "You can now connect to Termux via:"
+    echo "  ${CYAN}ssh termux-cf${NC}  - via Cloudflare Tunnel (anywhere)"
+    echo "  ${CYAN}ssh termux-local${NC} - via local network (same WiFi)"
+    echo ""
+}
+
+# =============================================================================
+# TEST CONNECTION
+# =============================================================================
+
+test_connection() {
+    echo -e "${YELLOW}Testing connection...${NC}"
+    echo ""
+    
+    # First test if cloudflared can reach the tunnel
+    info "Testing Cloudflare Tunnel reachability..."
+    if cloudflared access ssh --hostname "$CF_TUNNEL_HOSTNAME" --command "echo 'Tunnel OK'" 2>/dev/null; then
+        success "Cloudflare Tunnel connection test passed!"
+    else
+        warn "Tunnel test failed - this may be normal if Termux tunnel isn't running yet."
+        info "Make sure the cloudflared tunnel is running on Termux."
+    fi
+    
+    echo ""
+    echo -e "${GREEN}============================================================"
+    echo "  Setup Complete!"
+    echo "============================================================${NC}"
+    echo ""
+    echo "Next steps:"
+    echo "  1. On Termux: Run 'cloudflared tunnel run' if not already running"
+    echo "  2. From PC: ssh termux-cf"
+    echo ""
+    echo "If you get 'permission denied', check:"
+    echo "  - Termux sshd is running: pgrep sshd"
+    echo "  - SSH key is authorized on Termux: ~/.ssh/authorized_keys"
+    echo ""
+}
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+main() {
+    check_cloudflared_pc
+    get_tunnel_hostname
+    get_termux_user
+    update_ssh_config
+    test_connection
+    
+    success "PC configuration complete!"
+}
+
+main "$@"
