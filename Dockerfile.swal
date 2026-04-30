@@ -10,7 +10,7 @@ FROM debian:trixie-slim
 # =============================================================================
 # Labels
 # =============================================================================
-LABEL maintainer="Belal <belal@swal.ai>"
+LABEL maintainer="Belal <https://github.com/iberi22>"
 LABEL description="ZeroClaw SWARM Node - Full dev environment with AI agents"
 LABEL version="1.0.0"
 

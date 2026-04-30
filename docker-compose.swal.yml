@@ -3,7 +3,6 @@
 # =============================================================================
 # Uso:
 #   docker compose -f docker-compose.swal.yml up -d
-#   docker compose -f docker-compose.swal.yml logs -f
 # =============================================================================
 
 name: zeroclaw-swal
@@ -13,36 +12,41 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.swal
-    container_name: zeroclaw-swal-node
+    container_name: zeroclaw-swan-node
 
+    # Puertos
     ports:
       - "42617:42617"   # Gateway HTTP
       - "2222:2222"     # SSH
 
+    # Compartir secrets del host (tokens API)
+    env_file:
+      - ${USERPROFILE}/.zeroclaw/secrets.env
+
     volumes:
-      # Workspace compartido con host
+      # Workspace compartido con OpenClaw (memorias live)
       - type: bind
-        source: ${HOME}/.openclaw/workspace
+        source: ${USERPROFILE}/.openclaw/workspace
         target: /zeroclaw/workspace
         read_only: false
 
       # Skills de OpenClaw
       - type: bind
-        source: ${HOME}/clawd/skills
+        source: ${USERPROFILE}/clawd/skills
         target: /zeroclaw/skills/openclaw
         read_only: true
 
       # Proyectos SWAL
       - type: bind
-        source: ${HOME}/scripts-python
+        source: E:/scripts-python
         target: /swal-projects
-        read_only: true
+        read_only: false
 
-      # SSH keys
+      # ZeroClaw config local
       - type: bind
-        source: ${HOME}/.ssh
-        target: /zeroclaw/ssh
-        read_only: true
+        source: ${USERPROFILE}/.zeroclaw
+        target: /home/agent/.zeroclaw
+        read_only: false
 
       # Logs persistentes
       - type: volume
@@ -56,16 +60,13 @@ services:
 
     environment:
       - TERMUX_PKG=1
-      - API_KEY=${API_KEY:-}
       - PROVIDER=${PROVIDER:-openrouter}
       - MODEL=${MODEL:-anthropic/claude-sonnet-4-20250514}
       - ZEROCLAW_WORKSPACE=/zeroclaw/workspace
       - ZEROCLAW_GATEWAY_PORT=42617
       - RUST_LOG=info
       - CARGO_BUILD_JOBS=4
-      - GROQ_API_KEY=${GROQ_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ZEROCLAW_CONFIG=/home/agent/.zeroclaw/config.toml
 
     restart: unless-stopped
     healthcheck:
